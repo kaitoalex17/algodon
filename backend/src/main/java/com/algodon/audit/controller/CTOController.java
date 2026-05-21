@@ -28,11 +28,15 @@ public class CTOController {
                     Long clusterId = null;
                     String clusterNombre = null;
                     String tecnicoAsignado = null;
+                    String zonaNombre = null;
                     if (cto.getCluster() != null) {
                         clusterId = cto.getCluster().getId();
                         clusterNombre = cto.getCluster().getNombre();
                         if (cto.getCluster().getTecnicoAsignado() != null) {
                             tecnicoAsignado = cto.getCluster().getTecnicoAsignado().getNombre();
+                        }
+                        if (cto.getCluster().getZona() != null) {
+                            zonaNombre = cto.getCluster().getZona().getNombre();
                         }
                     }
                     return new CTOMapDTO(
@@ -45,7 +49,8 @@ public class CTOController {
                             cto.getAuditada(),
                             clusterId,
                             clusterNombre,
-                            tecnicoAsignado
+                            tecnicoAsignado,
+                            zonaNombre
                     );
                 })
                 .collect(Collectors.toList());

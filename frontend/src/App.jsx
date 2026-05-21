@@ -10,7 +10,8 @@ import {
   Search,
   Check,
   Filter,
-  Layers
+  Layers,
+  Map as MapIcon
 } from 'lucide-react';
 import { api } from './api';
 import 'leaflet/dist/leaflet.css';
@@ -134,9 +135,12 @@ function App() {
 
   // Data de referencia
   const [usuarios, setUsuarios] = useState([]);
+  const [zonas, setZonas] = useState([]);
   
   // Filtros Locales Persistentes
   const [selectedFilterTech, setSelectedFilterTech] = useLocalStorage('algodon_tech_filter', '');
+  const [selectedFilterZona, setSelectedFilterZona] = useLocalStorage('algodon_zona_filter', '');
+  const [selectedFilterEstado, setSelectedFilterEstado] = useLocalStorage('algodon_estado_filter', '');
   const [showFilters, setShowFilters] = useState(false);
   
   // Estados de edición de popup
@@ -160,6 +164,9 @@ function App() {
       }
       const usuariosData = await api.getUsuarios();
       setUsuarios(usuariosData);
+      
+      const zonasData = await api.getZonas();
+      setZonas(zonasData);
     } catch (error) {
       showNotification(error.message, 'error');
     }
@@ -191,13 +198,25 @@ function App() {
     if (selectedFilterTech) {
       result = result.filter(c => c.tecnicoAsignado === selectedFilterTech);
     }
+    
+    if (selectedFilterZona) {
+      result = result.filter(c => c.zonaNombre === selectedFilterZona);
+    }
+    
+    if (selectedFilterEstado) {
+      if (selectedFilterEstado === 'REALIZADAS') {
+        result = result.filter(c => c.estadoAuditoria === 'CORRECTO' || c.estadoAuditoria === 'FALLO');
+      } else if (selectedFilterEstado === 'PENDIENTES') {
+        result = result.filter(c => c.estadoAuditoria === 'PENDIENTE' || !c.estadoAuditoria);
+      }
+    }
 
     if (selectedClusterNames.length > 0) {
       result = result.filter(c => selectedClusterNames.includes(c.clusterNombre));
     }
 
     setFilteredCtos(result);
-  }, [searchTerm, selectedFilterTech, selectedClusterNames, ctos]);
+  }, [searchTerm, selectedFilterTech, selectedFilterZona, selectedFilterEstado, selectedClusterNames, ctos]);
 
   // Cálculo de Clusters Visibles
   useEffect(() => {
@@ -332,19 +351,49 @@ function App() {
           {showFilters && (
             <div style={{
               position: 'absolute', top: '60px', right: '12px', width: '220px', zIndex: 1000,
-              background: 'var(--bg-card)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)'
+              background: 'var(--bg-card)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)',
+              display: 'flex', flexDirection: 'column', gap: '12px'
             }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Técnico</label>
-              <select 
-                className="form-input" 
-                style={{ width: '100%', fontSize: '13px', padding: '6px' }}
-                value={selectedFilterTech}
-                onChange={(e) => setSelectedFilterTech(e.target.value)}
-              >
-                <option value="">Todos los técnicos</option>
-                <option value="Sin Asignar">Sin Asignar</option>
-                {usuarios.map(u => <option key={u.id} value={u.nombre}>{u.nombre}</option>)}
-              </select>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Técnico</label>
+                <select 
+                  className="form-input" 
+                  style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                  value={selectedFilterTech}
+                  onChange={(e) => setSelectedFilterTech(e.target.value)}
+                >
+                  <option value="">Todos los técnicos</option>
+                  <option value="Sin Asignar">Sin Asignar</option>
+                  {usuarios.map(u => <option key={u.id} value={u.nombre}>{u.nombre}</option>)}
+                </select>
+              </div>
+              
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Zona</label>
+                <select 
+                  className="form-input" 
+                  style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                  value={selectedFilterZona}
+                  onChange={(e) => setSelectedFilterZona(e.target.value)}
+                >
+                  <option value="">Todas las zonas</option>
+                  {zonas.map(z => <option key={z.id} value={z.nombre}>{z.nombre}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Estado</label>
+                <select 
+                  className="form-input" 
+                  style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                  value={selectedFilterEstado}
+                  onChange={(e) => setSelectedFilterEstado(e.target.value)}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="PENDIENTES">Pendientes</option>
+                  <option value="REALIZADAS">Realizadas</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -435,7 +484,17 @@ function App() {
           <div className="info-sidebar" style={{ position: 'fixed', top: 'auto', bottom: 0, right: 0, left: 0, height: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', zIndex: 2000, border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="info-header" style={{ padding: '16px 20px' }}>
               <div className="info-title">CTO {selectedCtoDetails.codigo}</div>
-              <X size={24} className="text-muted" onClick={() => setSelectedCtoDetails(null)} />
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${selectedCtoDetails.latitud},${selectedCtoDetails.longitud}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}
+                >
+                  <MapIcon size={22} />
+                </a>
+                <X size={24} className="text-muted" onClick={() => setSelectedCtoDetails(null)} />
+              </div>
             </div>
             <div className="info-content" style={{ padding: '0 20px 20px 20px' }}>
               

@@ -18,4 +18,5 @@ public class CTOMapDTO {
     private Long clusterId;
     private String clusterNombre;
     private String tecnicoAsignado;
+    private String zonaNombre;
 }
