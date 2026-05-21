@@ -14,4 +14,7 @@ public class CTOMapDTO {
     private Double longitud;
     private String estado;
     private Boolean auditada;
+    private Long clusterId;
+    private String clusterNombre;
+    private String tecnicoAsignado;
 }

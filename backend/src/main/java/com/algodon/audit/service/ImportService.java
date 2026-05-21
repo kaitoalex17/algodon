@@ -32,8 +32,29 @@ public class ImportService {
     
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
+    public List<String> getExcelHeaders(MultipartFile file) throws Exception {
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(is)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rows = sheet.iterator();
+            if (!rows.hasNext()) {
+                throw new IllegalArgumentException("El archivo Excel está vacío");
+            }
+            Row headerRow = rows.next();
+            List<String> headers = new ArrayList<>();
+            for (Cell cell : headerRow) {
+                if (cell.getCellType() == CellType.STRING) {
+                    headers.add(cell.getStringCellValue().trim());
+                } else {
+                    headers.add("Columna " + cell.getColumnIndex());
+                }
+            }
+            return headers;
+        }
+    }
+
     @Transactional
-    public Map<String, Object> importExcel(MultipartFile file) throws Exception {
+    public Map<String, Object> importExcel(MultipartFile file, Map<String, String> mapping) throws Exception {
         int importedCount = 0;
         int updatedCount = 0;
 
@@ -48,14 +69,58 @@ public class ImportService {
             }
 
             Row headerRow = rows.next();
-            Map<String, Integer> headerMap = getHeaderMap(headerRow);
+            
+            // Map: Excel Header Name -> Column Index
+            Map<String, Integer> excelHeaderToIndex = new HashMap<>();
+            for (Cell cell : headerRow) {
+                if (cell.getCellType() == CellType.STRING) {
+                    String val = cell.getStringCellValue().trim();
+                    excelHeaderToIndex.put(val, cell.getColumnIndex());
+                }
+            }
 
-            // Validate mandatory headers
-            validateHeaders(headerMap);
+            String[] allFields = {
+                "codigo", "zona", "cluster", "latitud", "longitud", "usersinc", "olt", 
+                "entidad", "municipio", "provincia", "empresa", "estado", "sincronizada", 
+                "entregada", "aceptada", "mutualizada", "uuii", "tipoDespliegueInput", 
+                "stream", "ec", "auditada", "comentarios"
+            };
 
-            // Cache zones and clusters to avoid constant DB round-trips
+            Map<String, Integer> fieldToIndex = new HashMap<>();
+            for (String field : allFields) {
+                String mappedHeader = mapping != null ? mapping.get(field) : null;
+                if (mappedHeader == null || mappedHeader.trim().isEmpty()) {
+                    mappedHeader = getDefaultHeaderName(field);
+                }
+                
+                Integer index = excelHeaderToIndex.get(mappedHeader);
+                if (index == null) {
+                    for (Map.Entry<String, Integer> entry : excelHeaderToIndex.entrySet()) {
+                        if (entry.getKey().equalsIgnoreCase(mappedHeader)) {
+                            index = entry.getValue();
+                            break;
+                        }
+                    }
+                }
+                if (index != null) {
+                    fieldToIndex.put(field, index);
+                }
+            }
+
+            List<String> missing = new ArrayList<>();
+            String[] requiredFields = {"codigo", "zona", "cluster", "latitud", "longitud"};
+            for (String req : requiredFields) {
+                if (!fieldToIndex.containsKey(req)) {
+                    String userMappedHeader = mapping != null ? mapping.get(req) : null;
+                    missing.add(req + (userMappedHeader != null ? " (mapeado como '" + userMappedHeader + "')" : ""));
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw new IllegalArgumentException("Faltan las siguientes columnas obligatorias en el Excel: " + missing);
+            }
+
             Map<String, Zona> zonaCache = new HashMap<>();
-            Map<String, Map<String, Cluster>> clusterCache = new HashMap<>(); // ZonaName -> (ClusterName -> Cluster)
+            Map<String, Map<String, Cluster>> clusterCache = new HashMap<>();
 
             while (rows.hasNext()) {
                 Row currentRow = rows.next();
@@ -63,16 +128,15 @@ public class ImportService {
                     continue;
                 }
 
-                String zonaNombre = getCellValueAsString(currentRow.getCell(headerMap.get("zona")));
-                String clusterNombre = getCellValueAsString(currentRow.getCell(headerMap.get("cluster")));
-                String codigo = getCellValueAsString(currentRow.getCell(headerMap.get("código")));
+                String zonaNombre = getFieldValueAsString(currentRow, fieldToIndex.get("zona"));
+                String clusterNombre = getFieldValueAsString(currentRow, fieldToIndex.get("cluster"));
+                String codigo = getFieldValueAsString(currentRow, fieldToIndex.get("codigo"));
 
                 if (zonaNombre == null || clusterNombre == null || codigo == null) {
                     log.warn("Fila {} saltada: zona, cluster o código están vacíos", currentRow.getRowNum());
                     continue;
                 }
 
-                // Get or create Zona
                 Zona zona = zonaCache.computeIfAbsent(zonaNombre.toUpperCase(), name -> {
                     return zonaRepository.findByNombre(zonaNombre)
                             .orElseGet(() -> {
@@ -82,7 +146,6 @@ public class ImportService {
                             });
                 });
 
-                // Get or create Cluster
                 Map<String, Cluster> clustersInZona = clusterCache.computeIfAbsent(zona.getNombre().toUpperCase(), k -> new HashMap<>());
                 Cluster cluster = clustersInZona.computeIfAbsent(clusterNombre.toUpperCase(), name -> {
                     return clusterRepository.findByNombreAndZona(clusterNombre, zona)
@@ -94,7 +157,6 @@ public class ImportService {
                             });
                 });
 
-                // Get or create CTO
                 Optional<CTO> existingCto = ctoRepository.findByCodigo(codigo);
                 CTO cto = existingCto.orElseGet(CTO::new);
                 if (existingCto.isPresent()) {
@@ -105,16 +167,16 @@ public class ImportService {
 
                 cto.setCodigo(codigo);
                 cto.setCluster(cluster);
-                cto.setUsersinc(getCellValueAsString(currentRow.getCell(headerMap.get("usersinc"))));
-                cto.setOlt(getCellValueAsString(currentRow.getCell(headerMap.get("olt"))));
-                cto.setEntidad(getCellValueAsString(currentRow.getCell(headerMap.get("entidad"))));
-                cto.setMunicipio(getCellValueAsString(currentRow.getCell(headerMap.get("municipio"))));
-                cto.setProvincia(getCellValueAsString(currentRow.getCell(headerMap.get("provincia"))));
-                cto.setEmpresa(getCellValueAsString(currentRow.getCell(headerMap.get("empresa"))));
-                cto.setEstado(getCellValueAsString(currentRow.getCell(headerMap.get("estado"))));
+                cto.setUsersinc(getFieldValueAsString(currentRow, fieldToIndex.get("usersinc")));
+                cto.setOlt(getFieldValueAsString(currentRow, fieldToIndex.get("olt")));
+                cto.setEntidad(getFieldValueAsString(currentRow, fieldToIndex.get("entidad")));
+                cto.setMunicipio(getFieldValueAsString(currentRow, fieldToIndex.get("municipio")));
+                cto.setProvincia(getFieldValueAsString(currentRow, fieldToIndex.get("provincia")));
+                cto.setEmpresa(getFieldValueAsString(currentRow, fieldToIndex.get("empresa")));
+                cto.setEstado(getFieldValueAsString(currentRow, fieldToIndex.get("estado")));
 
-                Double latitud = getCellValueAsDouble(currentRow.getCell(headerMap.get("latitud")));
-                Double longitud = getCellValueAsDouble(currentRow.getCell(headerMap.get("longitud")));
+                Double latitud = getFieldValueAsDouble(currentRow, fieldToIndex.get("latitud"));
+                Double longitud = getFieldValueAsDouble(currentRow, fieldToIndex.get("longitud"));
                 cto.setLatitud(latitud);
                 cto.setLongitud(longitud);
 
@@ -125,18 +187,18 @@ public class ImportService {
                     cto.setGeom(null);
                 }
 
-                cto.setSincronizada(getCellValueAsBoolean(currentRow.getCell(headerMap.get("sincronizada"))));
-                cto.setEntregada(getCellValueAsBoolean(currentRow.getCell(headerMap.get("entregada"))));
-                cto.setAceptada(getCellValueAsBoolean(currentRow.getCell(headerMap.get("aceptada"))));
-                cto.setMutualizada(getCellValueAsBoolean(currentRow.getCell(headerMap.get("mutualizada"))));
-                cto.setUuii(getCellValueAsInteger(currentRow.getCell(headerMap.get("uuii"))));
-                cto.setTipoDespliegueInput(getCellValueAsString(currentRow.getCell(headerMap.get("tipo_despliegue_input"))));
-                cto.setStream(getCellValueAsString(currentRow.getCell(headerMap.get("stream"))));
-                cto.setEc(getCellValueAsString(currentRow.getCell(headerMap.get("ec"))));
+                cto.setSincronizada(getFieldValueAsBoolean(currentRow, fieldToIndex.get("sincronizada")));
+                cto.setEntregada(getFieldValueAsBoolean(currentRow, fieldToIndex.get("entregada")));
+                cto.setAceptada(getFieldValueAsBoolean(currentRow, fieldToIndex.get("aceptada")));
+                cto.setMutualizada(getFieldValueAsBoolean(currentRow, fieldToIndex.get("mutualizada")));
+                cto.setUuii(getFieldValueAsInteger(currentRow, fieldToIndex.get("uuii")));
+                cto.setTipoDespliegueInput(getFieldValueAsString(currentRow, fieldToIndex.get("tipoDespliegueInput")));
+                cto.setStream(getFieldValueAsString(currentRow, fieldToIndex.get("stream")));
+                cto.setEc(getFieldValueAsString(currentRow, fieldToIndex.get("ec")));
 
-                Boolean auditada = getCellValueAsBoolean(currentRow.getCell(headerMap.get("Auditada")));
+                Boolean auditada = getFieldValueAsBoolean(currentRow, fieldToIndex.get("auditada"));
                 cto.setAuditada(auditada != null ? auditada : false);
-                cto.setComentarios(getCellValueAsString(currentRow.getCell(headerMap.get("Comentarios"))));
+                cto.setComentarios(getFieldValueAsString(currentRow, fieldToIndex.get("comentarios")));
 
                 ctoRepository.save(cto);
             }
@@ -148,27 +210,13 @@ public class ImportService {
         return result;
     }
 
-    private Map<String, Integer> getHeaderMap(Row headerRow) {
-        Map<String, Integer> headerMap = new HashMap<>();
-        for (Cell cell : headerRow) {
-            if (cell.getCellType() == CellType.STRING) {
-                String val = cell.getStringCellValue().trim();
-                headerMap.put(val, cell.getColumnIndex());
-            }
-        }
-        return headerMap;
-    }
-
-    private void validateHeaders(Map<String, Integer> headerMap) {
-        String[] required = {"zona", "cluster", "código", "latitud", "longitud"};
-        List<String> missing = new ArrayList<>();
-        for (String req : required) {
-            if (!headerMap.containsKey(req)) {
-                missing.add(req);
-            }
-        }
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("Faltan las siguientes columnas obligatorias en el Excel: " + missing);
+    private String getDefaultHeaderName(String field) {
+        switch (field) {
+            case "codigo": return "código";
+            case "tipoDespliegueInput": return "tipo_despliegue_input";
+            case "auditada": return "Auditada";
+            case "comentarios": return "Comentarios";
+            default: return field;
         }
     }
 
@@ -181,6 +229,26 @@ public class ImportService {
             }
         }
         return true;
+    }
+
+    private String getFieldValueAsString(Row row, Integer colIndex) {
+        if (colIndex == null) return null;
+        return getCellValueAsString(row.getCell(colIndex));
+    }
+
+    private Double getFieldValueAsDouble(Row row, Integer colIndex) {
+        if (colIndex == null) return null;
+        return getCellValueAsDouble(row.getCell(colIndex));
+    }
+
+    private Integer getFieldValueAsInteger(Row row, Integer colIndex) {
+        if (colIndex == null) return null;
+        return getCellValueAsInteger(row.getCell(colIndex));
+    }
+
+    private Boolean getFieldValueAsBoolean(Row row, Integer colIndex) {
+        if (colIndex == null) return null;
+        return getCellValueAsBoolean(row.getCell(colIndex));
     }
 
     private String getCellValueAsString(Cell cell) {

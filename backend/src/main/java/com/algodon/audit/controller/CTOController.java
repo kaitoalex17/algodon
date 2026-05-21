@@ -24,14 +24,29 @@ public class CTOController {
     public ResponseEntity<List<CTOMapDTO>> getAllCTOs() {
         List<CTOMapDTO> dtos = ctoRepository.findAll().stream()
                 .filter(cto -> cto.getLatitud() != null && cto.getLongitud() != null)
-                .map(cto -> new CTOMapDTO(
-                        cto.getId(),
-                        cto.getCodigo(),
-                        cto.getLatitud(),
-                        cto.getLongitud(),
-                        cto.getEstado(),
-                        cto.getAuditada()
-                ))
+                .map(cto -> {
+                    Long clusterId = null;
+                    String clusterNombre = null;
+                    String tecnicoAsignado = null;
+                    if (cto.getCluster() != null) {
+                        clusterId = cto.getCluster().getId();
+                        clusterNombre = cto.getCluster().getNombre();
+                        if (cto.getCluster().getTecnicoAsignado() != null) {
+                            tecnicoAsignado = cto.getCluster().getTecnicoAsignado().getNombre();
+                        }
+                    }
+                    return new CTOMapDTO(
+                            cto.getId(),
+                            cto.getCodigo(),
+                            cto.getLatitud(),
+                            cto.getLongitud(),
+                            cto.getEstado(),
+                            cto.getAuditada(),
+                            clusterId,
+                            clusterNombre,
+                            tecnicoAsignado
+                    );
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(dtos);
     }

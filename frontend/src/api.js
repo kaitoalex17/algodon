@@ -21,9 +21,12 @@ const BASE_URL = getBaseUrl();
 
 export const api = {
   // Importación
-  importExcel: async (file) => {
+  importExcel: async (file, mapping) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (mapping) {
+      formData.append('mapping', JSON.stringify(mapping));
+    }
 
     const response = await fetch(`${BASE_URL}/api/import`, {
       method: 'POST',
@@ -32,6 +35,21 @@ export const api = {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(errorText || 'Error al importar el archivo Excel');
+    }
+    return response.json();
+  },
+
+  getExcelHeaders: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${BASE_URL}/api/import/headers`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Error al extraer las cabeceras');
     }
     return response.json();
   },
@@ -102,6 +120,21 @@ export const api = {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(errorText || 'Error al distribuir los clusters');
+    }
+    return response.json();
+  },
+
+  assignClusters: async (clusterIds, tecnicoId) => {
+    const response = await fetch(`${BASE_URL}/api/assignment/assign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ clusterIds, tecnicoId }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Error al asignar los clusters');
     }
     return response.json();
   }

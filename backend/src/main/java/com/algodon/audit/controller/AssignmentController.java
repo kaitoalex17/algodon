@@ -83,9 +83,42 @@ public class AssignmentController {
         ));
     }
 
+    @PostMapping("/assignment/assign")
+    public ResponseEntity<?> assignClusters(@RequestBody AssignRequest request) {
+        if (request.getClusterIds() == null || request.getClusterIds().isEmpty() || request.getTecnicoId() == null) {
+            return ResponseEntity.badRequest().body("Faltan parámetros requeridos (clusterIds o tecnicoId)");
+        }
+
+        Usuario tecnico = usuarioRepository.findById(request.getTecnicoId()).orElse(null);
+        if (tecnico == null) {
+            return ResponseEntity.badRequest().body("Técnico no encontrado");
+        }
+
+        List<Cluster> clusters = clusterRepository.findAllById(request.getClusterIds());
+        if (clusters.isEmpty()) {
+            return ResponseEntity.badRequest().body("No se encontraron clusters");
+        }
+
+        for (Cluster c : clusters) {
+            c.setTecnicoAsignado(tecnico);
+        }
+        clusterRepository.saveAll(clusters);
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Clusters asignados correctamente",
+            "assignedCount", clusters.size()
+        ));
+    }
+
     @Data
     public static class DistributeRequest {
         private Long zonaId;
         private List<Long> tecnicoIds;
+    }
+
+    @Data
+    public static class AssignRequest {
+        private List<Long> clusterIds;
+        private Long tecnicoId;
     }
 }
