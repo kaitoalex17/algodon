@@ -1,0 +1,30 @@
+# Java / Maven target directories
+**/target/
+**/*.class
+**/*.jar
+**/*.war
+**/*.ear
+**/*.log
+
+# Maven wrapper and system files
+.mvn/
+mvnw
+mvnw.cmd
+
+# Eclipse / IntelliJ IDEA / VS Code project files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.factorypath
+.vscode/
+
+# Node / React build directories
+**/node_modules/
+**/dist/
+.env*.local
+
+# OS files
+.DS_Store
+Thumbs.db
