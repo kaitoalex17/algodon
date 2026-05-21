@@ -80,7 +80,7 @@ public class CTO {
     @Column(name = "ec")
     private String ec;
 
-    @Column(name = "estado_auditoria", nullable = false)
+    @Column(name = "estado_auditoria")
     private String estadoAuditoria = "PENDIENTE";
 
     @Column(name = "auditada", nullable = false)
