@@ -22,7 +22,7 @@ public class CTOController {
 
     @GetMapping
     public ResponseEntity<List<CTOMapDTO>> getAllCTOs() {
-        List<CTOMapDTO> dtos = ctoRepository.findAll().stream()
+        List<CTOMapDTO> dtos = ctoRepository.findAllWithClusters().stream()
                 .filter(cto -> cto.getLatitud() != null && cto.getLongitud() != null)
                 .map(cto -> {
                     Long clusterId = null;
@@ -59,7 +59,7 @@ public class CTOController {
 
     @GetMapping("/{id}")
     public ResponseEntity<CTODetailDTO> getCTODetails(@PathVariable Long id) {
-        return ctoRepository.findById(id)
+        return ctoRepository.findByIdWithClusters(id)
                 .map(cto -> {
                     CTODetailDTO dto = new CTODetailDTO();
                     dto.setId(cto.getId());
