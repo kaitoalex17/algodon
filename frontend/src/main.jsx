@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import AdminApp from './AdminApp.jsx'
+import CtoDetail from './CtoDetail.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/admin" element={<AdminApp />} />
+        <Route path="/cto/:id" element={<CtoDetail />} />
       </Routes>
     </HashRouter>
   </StrictMode>,

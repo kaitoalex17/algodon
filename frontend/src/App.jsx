@@ -11,7 +11,11 @@ import {
   Check,
   Filter,
   Layers,
-  Map as MapIcon
+  Map as MapIcon,
+  HardDrive,
+  ExternalLink,
+  Save,
+  Info
 } from 'lucide-react';
 import { api } from './api';
 import 'leaflet/dist/leaflet.css';
@@ -312,6 +316,25 @@ function App() {
     }
   };
 
+  const handleSaveComment = async () => {
+    if (!selectedCtoDetails) return;
+    try {
+      setLoading(true);
+      await api.updateCTOAudit(
+        selectedCtoDetails.id, 
+        selectedCtoDetails.auditada || false, 
+        editComentarios, 
+        selectedCtoDetails.estadoAuditoria || 'PENDIENTE'
+      );
+      setSelectedCtoDetails(prev => ({ ...prev, comentarios: editComentarios }));
+      showNotification('Notas guardadas correctamente');
+    } catch (error) {
+      showNotification(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app-container" style={{ paddingBottom: 0 }}>
       {notification && (
@@ -486,14 +509,33 @@ function App() {
               <div className="info-title">CTO {selectedCtoDetails.codigo}</div>
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                 <a 
+                  href={`/#/cto/${selectedCtoDetails.id}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  title="Más detalles"
+                  style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}
+                >
+                  <Info size={22} />
+                </a>
+                <a 
+                  href={`https://cto-tracker.olin.es/${selectedCtoDetails.codigo}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  title="Abrir en CTO Tracker"
+                  style={{ color: '#10b981', display: 'flex', alignItems: 'center' }}
+                >
+                  <HardDrive size={22} />
+                </a>
+                <a 
                   href={`https://www.google.com/maps/search/?api=1&query=${selectedCtoDetails.latitud},${selectedCtoDetails.longitud}`} 
                   target="_blank" 
                   rel="noreferrer"
-                  style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}
+                  title="Ver en Google Maps"
+                  style={{ color: '#8b5cf6', display: 'flex', alignItems: 'center' }}
                 >
                   <MapIcon size={22} />
                 </a>
-                <X size={24} className="text-muted" onClick={() => setSelectedCtoDetails(null)} />
+                <X size={24} className="text-muted" onClick={() => setSelectedCtoDetails(null)} style={{ cursor: 'pointer', marginLeft: '8px' }} />
               </div>
             </div>
             <div className="info-content" style={{ padding: '0 20px 20px 20px' }}>
@@ -507,13 +549,28 @@ function App() {
                 </strong>
               </div>
 
-              <textarea 
-                className="form-input"
-                style={{ height: '60px', resize: 'none', fontSize: '14px', marginBottom: '16px' }}
-                value={editComentarios}
-                onChange={(e) => setEditComentarios(e.target.value)}
-                placeholder="Comentarios o notas de la caja..."
-              />
+              <div style={{ position: 'relative', marginBottom: '16px' }}>
+                <textarea 
+                  className="form-input"
+                  style={{ height: '60px', resize: 'none', fontSize: '14px', width: '100%', paddingRight: '40px' }}
+                  value={editComentarios}
+                  onChange={(e) => setEditComentarios(e.target.value)}
+                  placeholder="Comentarios o notas de la caja..."
+                />
+                <button 
+                  onClick={handleSaveComment}
+                  disabled={loading || editComentarios === (selectedCtoDetails.comentarios || '')}
+                  style={{ 
+                    position: 'absolute', right: '8px', bottom: '8px', 
+                    background: 'transparent', border: 'none', 
+                    color: editComentarios !== (selectedCtoDetails.comentarios || '') ? 'var(--primary)' : 'var(--text-muted)',
+                    cursor: editComentarios !== (selectedCtoDetails.comentarios || '') ? 'pointer' : 'default'
+                  }}
+                  title="Guardar notas"
+                >
+                  <Save size={20} />
+                </button>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 <button 
