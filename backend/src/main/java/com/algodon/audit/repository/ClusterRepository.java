@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface ClusterRepository extends JpaRepository<Cluster, Long> {
     Optional<Cluster> findByNombreAndZona(String nombre, Zona zona);
+    java.util.List<Cluster> findByZonaId(Long zonaId);
 }
