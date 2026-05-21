@@ -1,14 +1,19 @@
 const getBaseUrl = () => {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
+  const port = window.location.port;
 
   // Si estamos en desarrollo local
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:18080';
   }
 
-  // En producción, asumimos que el backend está corriendo en el puerto 18080 del mismo host
-  // o que se accede mediante el subdominio con puerto expuesto.
+  // Si accedemos a través del proxy inverso en el puerto por defecto (80 o 443) sin especificar puerto
+  if (!port || port === '80' || port === '443') {
+    return `${protocol}//${hostname}`;
+  }
+
+  // Si accedemos por IP local con el puerto del frontend (ej: 18081)
   return `${protocol}//${hostname}:18080`;
 };
 
