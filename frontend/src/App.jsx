@@ -384,8 +384,8 @@ function App() {
             ))}
           </MapContainer>
 
-          <button className="map-control-btn" onClick={centerOnUser} style={{ bottom: '24px', right: '12px' }}>
-            <Navigation size={22} style={{ transform: 'rotate(45deg)' }} />
+          <button className="map-control-btn" onClick={centerOnUser} style={{ bottom: '24px', right: '12px', padding: '8px', width: '38px', height: '38px', borderRadius: '50%' }}>
+            <Navigation size={18} style={{ transform: 'rotate(45deg)' }} />
           </button>
         </div>
 
