@@ -67,15 +67,27 @@ export const api = {
     return response.json();
   },
 
-  updateCTOAudit: async (id, auditada, comentarios) => {
+  updateCTOAudit: async (id, auditada, comentarios, estadoAuditoria) => {
+    const body = { auditada, comentarios };
+    if (estadoAuditoria) {
+      body.estadoAuditoria = estadoAuditoria;
+    }
     const response = await fetch(`${BASE_URL}/api/ctos/${id}/audit`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ auditada, comentarios }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error('Error al actualizar la auditoría');
+    return true;
+  },
+
+  purgeDatabase: async () => {
+    const response = await fetch(`${BASE_URL}/api/system/purge`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al purgar la base de datos');
     return true;
   },
 

@@ -25,6 +25,7 @@ public class CTODetailDTO {
     private String tipoDespliegueInput;
     private String stream;
     private String ec;
+    private String estadoAuditoria;
     private Boolean auditada;
     private String comentarios;
     private String tecnicoAsignado;

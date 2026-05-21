@@ -13,6 +13,7 @@ public class CTOMapDTO {
     private Double latitud;
     private Double longitud;
     private String estado;
+    private String estadoAuditoria;
     private Boolean auditada;
     private Long clusterId;
     private String clusterNombre;

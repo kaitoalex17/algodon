@@ -80,6 +80,9 @@ public class CTO {
     @Column(name = "ec")
     private String ec;
 
+    @Column(name = "estado_auditoria", columnDefinition = "varchar(255) default 'PENDIENTE'")
+    private String estadoAuditoria = "PENDIENTE";
+
     @Column(name = "auditada", nullable = false)
     private Boolean auditada = false;
 

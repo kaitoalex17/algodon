@@ -41,6 +41,7 @@ public class CTOController {
                             cto.getLatitud(),
                             cto.getLongitud(),
                             cto.getEstado(),
+                            cto.getEstadoAuditoria(),
                             cto.getAuditada(),
                             clusterId,
                             clusterNombre,
@@ -84,6 +85,7 @@ public class CTOController {
                     dto.setTipoDespliegueInput(cto.getTipoDespliegueInput());
                     dto.setStream(cto.getStream());
                     dto.setEc(cto.getEc());
+                    dto.setEstadoAuditoria(cto.getEstadoAuditoria());
                     dto.setAuditada(cto.getAuditada());
                     dto.setComentarios(cto.getComentarios());
                     return ResponseEntity.ok(dto);
@@ -97,6 +99,9 @@ public class CTOController {
                 .map(cto -> {
                     if (request.getAuditada() != null) {
                         cto.setAuditada(request.getAuditada());
+                    }
+                    if (request.getEstadoAuditoria() != null) {
+                        cto.setEstadoAuditoria(request.getEstadoAuditoria());
                     }
                     if (request.getComentarios() != null) {
                         cto.setComentarios(request.getComentarios());
