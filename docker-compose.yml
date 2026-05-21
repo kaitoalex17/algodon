@@ -2,12 +2,12 @@ version: '3.8'
 
 services:
   db:
-    image: postgis/postgis:15-3.4
+    image: kartoza/postgis:15-3.4
     container_name: algodon-db
     environment:
-      POSTGRES_DB: algodon
+      POSTGRES_DBNAME: algodon
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASS: postgres
     ports:
       - "15432:5432"
     volumes:
