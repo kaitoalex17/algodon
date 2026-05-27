@@ -157,12 +157,18 @@ public class CTOController {
                 row.createCell(1).setCellValue(cto.getCodigo() != null ? cto.getCodigo() : "");
                 if (cto.getLatitud() != null) row.createCell(2).setCellValue(cto.getLatitud());
                 if (cto.getLongitud() != null) row.createCell(3).setCellValue(cto.getLongitud());
-                if (cto.getZona() != null) row.createCell(4).setCellValue(cto.getZona().getNombre());
-                if (cto.getCluster() != null) row.createCell(5).setCellValue(cto.getCluster().getNombre());
+                if (cto.getCluster() != null) {
+                    if (cto.getCluster().getZona() != null) {
+                        row.createCell(4).setCellValue(cto.getCluster().getZona().getNombre());
+                    }
+                    row.createCell(5).setCellValue(cto.getCluster().getNombre());
+                    if (cto.getCluster().getTecnicoAsignado() != null) {
+                        row.createCell(9).setCellValue(cto.getCluster().getTecnicoAsignado().getNombre());
+                    }
+                }
                 if (cto.getEstadoAuditoria() != null) row.createCell(6).setCellValue(cto.getEstadoAuditoria());
-                row.createCell(7).setCellValue(cto.isAuditada() ? "Sí" : "No");
+                row.createCell(7).setCellValue(cto.getAuditada() != null && cto.getAuditada() ? "Sí" : "No");
                 if (cto.getComentarios() != null) row.createCell(8).setCellValue(cto.getComentarios());
-                if (cto.getTecnicoAsignado() != null) row.createCell(9).setCellValue(cto.getTecnicoAsignado().getNombre());
             }
 
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
