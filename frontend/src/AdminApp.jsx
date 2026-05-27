@@ -10,6 +10,9 @@ function AdminApp() {
   // Data states
   const [zonas, setZonas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [ctos, setCtos] = useState([]);
+  const [duplicadas, setDuplicadas] = useState([]);
+  const [estados, setEstados] = useState([]);
   const [selectedZonaId, setSelectedZonaId] = useState('');
   const [selectedTecnicoIds, setSelectedTecnicoIds] = useState([]);
 
@@ -23,6 +26,17 @@ function AdminApp() {
   const [newUsername, setNewUsername] = useState('');
   const [newNombre, setNewNombre] = useState('');
   const [newEmail, setNewEmail] = useState('');
+
+  // States for 'Estados' Management
+  const [nuevoEstadoNombre, setNuevoEstadoNombre] = useState('');
+  const [nuevoEstadoColor, setNuevoEstadoColor] = useState('#9ca3af');
+
+  // Manual CTO creation
+  const [showAddCTO, setShowAddCTO] = useState(false);
+  const [newCTOData, setNewCTOData] = useState({
+    codigo: '', latitud: '', longitud: '', estado: '',
+    zonaId: '', clusterId: ''
+  });
 
   const requiredFields = [
     { key: 'codigo', label: 'Código CTO' },
@@ -68,6 +82,15 @@ function AdminApp() {
 
       const usuariosData = await api.getUsuarios();
       setUsuarios(usuariosData);
+
+      const ctosData = await api.getCTOs();
+      setCtos(ctosData || []);
+
+      const dupData = await api.getDuplicadas();
+      setDuplicadas(dupData || []);
+
+      const estData = await api.getEstados();
+      setEstados(estData || []);
     } catch (error) {
       showNotification(error.message, 'error');
     }
@@ -205,6 +228,80 @@ function AdminApp() {
     }
   };
 
+  // Delete handlers
+  const handleDeleteCTO = async (id) => {
+    if (window.confirm("¿Seguro que deseas eliminar esta CTO?")) {
+      try {
+        setLoading(true);
+        await api.deleteCTO(id);
+        showNotification('CTO eliminada');
+        loadData();
+      } catch (error) { showNotification(error.message, 'error'); }
+      finally { setLoading(false); }
+    }
+  };
+
+  const handleDeleteDuplicada = async (id) => {
+    try {
+      setLoading(true);
+      await api.deleteDuplicada(id);
+      showNotification('Duplicada eliminada');
+      loadData();
+    } catch (error) { showNotification(error.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const handleCreateEstado = async (e) => {
+    e.preventDefault();
+    if (!nuevoEstadoNombre) return;
+    try {
+      setLoading(true);
+      await api.createEstado(nuevoEstadoNombre, nuevoEstadoColor);
+      setNuevoEstadoNombre('');
+      showNotification('Estado creado');
+      loadData();
+    } catch (error) { showNotification(error.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const handleDeleteEstado = async (id) => {
+    try {
+      setLoading(true);
+      await api.deleteEstado(id);
+      showNotification('Estado eliminado');
+      loadData();
+    } catch (error) { showNotification(error.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const handleCreateCTO = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      
+      const payload = {
+        codigo: newCTOData.codigo,
+        latitud: parseFloat(newCTOData.latitud),
+        longitud: parseFloat(newCTOData.longitud),
+        estado: newCTOData.estado,
+        // we'd need to fetch zona/cluster objects based on IDs, or the backend should allow passing ids.
+        // the backend currently accepts cluster.id if we structure it properly, but wait, the endpoint `createCTO`
+        // expects CTO object. We can send: {codigo, latitud, longitud, estado, cluster: {id: ...}}
+        cluster: newCTOData.clusterId ? { id: parseInt(newCTOData.clusterId) } : null
+      };
+
+      await api.createCTO(payload);
+      showNotification('CTO Creada Manualmente');
+      setNewCTOData({ codigo: '', latitud: '', longitud: '', estado: '', zonaId: '', clusterId: '' });
+      setShowAddCTO(false);
+      loadData();
+    } catch(err) {
+      showNotification(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app-container" style={{ display: 'block', height: 'auto', minHeight: '100vh', overflowY: 'auto' }}>
       {notification && (
@@ -226,6 +323,12 @@ function AdminApp() {
           </button>
           <button className={`btn ${activeTab === 'technicians' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('technicians')}>
             <Users size={16} style={{marginRight: '6px'}} /> Técnicos
+          </button>
+          <button className={`btn ${activeTab === 'ctos' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('ctos')}>
+            CTOs ({ctos.length})
+          </button>
+          <button className={`btn ${activeTab === 'duplicadas' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('duplicadas')}>
+            <AlertTriangle size={16} style={{marginRight: '6px'}} /> Duplicadas ({duplicadas.length})
           </button>
           <button className={`btn ${activeTab === 'system' ? 'btn-danger' : 'btn-secondary'}`} onClick={() => setActiveTab('system')}>
             <Database size={16} style={{marginRight: '6px'}} /> Sistema
@@ -521,6 +624,120 @@ function AdminApp() {
           </div>
         )}
 
+        {activeTab === 'ctos' && (
+          <div className="panel-container">
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2>Gestión de CTOs</h2>
+                <p>Visualiza y administra todas las cajas CTO importadas o creadas en el sistema.</p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setShowAddCTO(!showAddCTO)}>
+                {showAddCTO ? 'Cancelar' : '+ Añadir CTO Manual'}
+              </button>
+            </div>
+
+            {showAddCTO && (
+              <div className="card" style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.05)' }}>
+                <h3>Añadir CTO</h3>
+                <form onSubmit={handleCreateCTO} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input type="text" className="form-input" placeholder="Código CTO" required value={newCTOData.codigo} onChange={e => setNewCTOData({...newCTOData, codigo: e.target.value})} />
+                    <select className="form-input" value={newCTOData.zonaId} onChange={e => setNewCTOData({...newCTOData, zonaId: e.target.value, clusterId: ''})} required>
+                      <option value="">-- Seleccionar Zona --</option>
+                      {zonas.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}
+                    </select>
+                    <select className="form-input" value={newCTOData.clusterId} onChange={e => setNewCTOData({...newCTOData, clusterId: e.target.value})} required disabled={!newCTOData.zonaId}>
+                      <option value="">-- Seleccionar Cluster --</option>
+                      {zonas.find(z => z.id === parseInt(newCTOData.zonaId))?.clusters.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input type="number" step="any" className="form-input" placeholder="Latitud" required value={newCTOData.latitud} onChange={e => setNewCTOData({...newCTOData, latitud: e.target.value})} />
+                    <input type="number" step="any" className="form-input" placeholder="Longitud" required value={newCTOData.longitud} onChange={e => setNewCTOData({...newCTOData, longitud: e.target.value})} />
+                    <select className="form-input" value={newCTOData.estado} onChange={e => setNewCTOData({...newCTOData, estado: e.target.value})}>
+                      <option value="">-- Estado (Opcional) --</option>
+                      {estados.map(est => <option key={est.id} value={est.nombre}>{est.nombre}</option>)}
+                    </select>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>Guardar CTO</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="card">
+              <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <th style={{ padding: '10px' }}>Código</th>
+                      <th style={{ padding: '10px' }}>Cluster / Zona</th>
+                      <th style={{ padding: '10px' }}>Técnico</th>
+                      <th style={{ padding: '10px' }}>Origen</th>
+                      <th style={{ padding: '10px' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ctos.map(c => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '10px' }}>{c.codigo}</td>
+                        <td style={{ padding: '10px' }}>{c.clusterNombre}</td>
+                        <td style={{ padding: '10px' }}>{c.tecnicoAsignado || 'Sin asignar'}</td>
+                        <td style={{ padding: '10px' }}>{c.origen || 'IMPORTADA'}</td>
+                        <td style={{ padding: '10px' }}>
+                          <button className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleDeleteCTO(c.id)}>Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'duplicadas' && (
+          <div className="panel-container">
+            <div className="panel-header">
+              <h2>CTOs Duplicadas ({duplicadas.length})</h2>
+              <p>Revisa las cajas que fueron ignoradas durante la importación porque ya existían.</p>
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                <button className="btn btn-danger" onClick={async () => {
+                  if(window.confirm('¿Borrar todas las duplicadas?')) {
+                    await api.deleteAllDuplicadas();
+                    loadData();
+                  }
+                }}>Limpiar Todo</button>
+              </div>
+              <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <th style={{ padding: '10px' }}>Código</th>
+                      <th style={{ padding: '10px' }}>Cluster / Zona</th>
+                      <th style={{ padding: '10px' }}>Estado</th>
+                      <th style={{ padding: '10px' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {duplicadas.map(d => (
+                      <tr key={d.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '10px' }}>{d.codigo}</td>
+                        <td style={{ padding: '10px' }}>{d.cluster} / {d.zona}</td>
+                        <td style={{ padding: '10px' }}>{d.estado}</td>
+                        <td style={{ padding: '10px' }}>
+                          <button className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleDeleteDuplicada(d.id)}>Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'system' && (
           <div className="panel-container">
             <div className="panel-header">
@@ -528,7 +745,28 @@ function AdminApp() {
               <p>Opciones avanzadas y purga de base de datos.</p>
             </div>
             
-            <div className="card" style={{ border: '1px solid rgba(244, 63, 94, 0.3)', background: 'rgba(244, 63, 94, 0.02)' }}>
+            <div className="card">
+              <h3>Configuración de Estados Dinámicos</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>Estos estados podrán ser usados al añadir CTOs manualmente.</p>
+              
+              <form onSubmit={handleCreateEstado} style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+                <input type="text" className="form-input" placeholder="Nombre (ej. CONSTRUIDA)" value={nuevoEstadoNombre} onChange={e => setNuevoEstadoNombre(e.target.value)} required />
+                <input type="color" className="form-input" style={{ width: '60px', padding: '2px' }} value={nuevoEstadoColor} onChange={e => setNuevoEstadoColor(e.target.value)} />
+                <button type="submit" className="btn btn-primary" disabled={loading}>Añadir Estado</button>
+              </form>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {estados.map(e => (
+                  <div key={e.id} style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: e.color }}></div>
+                    <span style={{ fontSize: '14px' }}>{e.nombre}</span>
+                    <button onClick={() => handleDeleteEstado(e.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '4px' }}>&times;</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card" style={{ border: '1px solid rgba(244, 63, 94, 0.3)', background: 'rgba(244, 63, 94, 0.02)', marginTop: '24px' }}>
               <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <AlertTriangle /> Zona de Peligro
               </h3>
@@ -544,6 +782,25 @@ function AdminApp() {
                 disabled={loading}
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : 'Borrar Todos Los Datos (CTOs y Clusters)'}
+              </button>
+            </div>
+
+            <div className="card" style={{ marginTop: '24px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Database /> Exportar Datos
+              </h3>
+              <p style={{ marginTop: '10px', fontSize: '14px', color: 'var(--text-muted)' }}>
+                Descarga un archivo Excel con todas las CTOs registradas en el sistema.
+              </p>
+              
+              <button 
+                className="btn btn-success" 
+                style={{ marginTop: '20px' }}
+                onClick={() => {
+                  window.location.href = `${api.getBaseUrl()}/api/ctos/export`;
+                }}
+              >
+                Descargar Excel de CTOs
               </button>
             </div>
           </div>

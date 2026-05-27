@@ -61,6 +61,9 @@ function MapBoundsListener({ onBoundsChange }) {
     if (!map) return;
     const handleMove = () => {
       onBoundsChange(map.getBounds());
+      const center = map.getCenter();
+      window.localStorage.setItem('algodon_map_center', JSON.stringify([center.lat, center.lng]));
+      window.localStorage.setItem('algodon_map_zoom', JSON.stringify(map.getZoom()));
     };
     map.on('moveend', handleMove);
     map.on('zoomend', handleMove);
@@ -70,6 +73,20 @@ function MapBoundsListener({ onBoundsChange }) {
       map.off('zoomend', handleMove);
     };
   }, [map, onBoundsChange]);
+  return null;
+}
+
+function ActiveLayerListener() {
+  const map = useMap();
+  useEffect(() => {
+    const handleLayerChange = (e) => {
+      window.localStorage.setItem('algodon_active_layer', e.name);
+    };
+    map.on('baselayerchange', handleLayerChange);
+    return () => {
+      map.off('baselayerchange', handleLayerChange);
+    };
+  }, [map]);
   return null;
 }
 
@@ -129,13 +146,16 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCtoDetails, setSelectedCtoDetails] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-  const [mapCenter, setMapCenter] = useState([40.416775, -3.703790]);
-  const [mapZoom, setMapZoom] = useState(6);
+  const savedCenter = JSON.parse(window.localStorage.getItem('algodon_map_center')) || [40.416775, -3.703790];
+  const savedZoom = JSON.parse(window.localStorage.getItem('algodon_map_zoom')) || 6;
+  const [mapCenter, setMapCenter] = useState(savedCenter);
+  const [mapZoom, setMapZoom] = useState(savedZoom);
   const [mapBounds, setMapBounds] = useState(null);
   
   // Clusters
   const [selectedClusterNames, setSelectedClusterNames] = useState([]);
   const [visibleClusters, setVisibleClusters] = useState([]);
+  const [expandedClusters, setExpandedClusters] = useState([]);
 
   // Data de referencia
   const [usuarios, setUsuarios] = useState([]);
@@ -149,6 +169,9 @@ function App() {
   
   // Estados de edición de popup
   const [editComentarios, setEditComentarios] = useState('');
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -162,7 +185,7 @@ function App() {
       const ctoData = await api.getCTOs();
       setCtos(ctoData);
       
-      if (ctoData.length > 0) {
+      if (ctoData.length > 0 && !window.localStorage.getItem('algodon_map_center')) {
         setMapCenter([ctoData[0].latitud, ctoData[0].longitud]);
         setMapZoom(13);
       }
@@ -196,7 +219,14 @@ function App() {
 
     if (searchTerm.trim()) {
       const lower = searchTerm.toLowerCase();
-      result = result.filter(c => c.codigo && c.codigo.toLowerCase().includes(lower));
+      result = result.filter(c => 
+        (c.codigo && c.codigo.toLowerCase().includes(lower)) ||
+        (c.clusterNombre && c.clusterNombre.toLowerCase().includes(lower)) ||
+        (c.zonaNombre && c.zonaNombre.toLowerCase().includes(lower)) ||
+        (c.tecnicoAsignado && c.tecnicoAsignado.toLowerCase().includes(lower)) ||
+        (c.municipio && c.municipio.toLowerCase().includes(lower)) ||
+        (c.estado && c.estado.toLowerCase().includes(lower))
+      );
     }
     
     if (selectedFilterTech) {
@@ -257,7 +287,8 @@ function App() {
     setVisibleClusters(Object.values(clustersMap).sort((a, b) => a.nombre.localeCompare(b.nombre)));
   }, [mapBounds, ctos, selectedFilterTech]);
 
-  const toggleClusterSelection = (clusterName) => {
+  const toggleClusterSelection = (clusterName, e) => {
+    if (e) e.stopPropagation();
     const isNowSelected = !selectedClusterNames.includes(clusterName);
     setSelectedClusterNames(prev => 
       prev.includes(clusterName) ? prev.filter(name => name !== clusterName) : [...prev, clusterName]
@@ -272,6 +303,13 @@ function App() {
         setMapZoom(15);
       }
     }
+  };
+
+  const toggleClusterExpansion = (clusterName, e) => {
+    if (e) e.stopPropagation();
+    setExpandedClusters(prev => 
+      prev.includes(clusterName) ? prev.filter(name => name !== clusterName) : [...prev, clusterName]
+    );
   };
 
   const centerOnUser = () => {
@@ -289,6 +327,9 @@ function App() {
       const details = await api.getCTODetail(id);
       setSelectedCtoDetails(details);
       setEditComentarios(details.comentarios || '');
+      setEditLat(details.latitud || '');
+      setEditLng(details.longitud || '');
+      setIsEditingLocation(false);
     } catch (error) {
       showNotification(error.message, 'error');
     }
@@ -328,6 +369,24 @@ function App() {
       );
       setSelectedCtoDetails(prev => ({ ...prev, comentarios: editComentarios }));
       showNotification('Notas guardadas correctamente');
+    } catch (error) {
+      showNotification(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateLocation = async () => {
+    if (!selectedCtoDetails) return;
+    try {
+      setLoading(true);
+      await api.updateCTOLocation(selectedCtoDetails.id, parseFloat(editLat), parseFloat(editLng));
+      
+      // Update local state
+      setCtos(prev => prev.map(c => c.id === selectedCtoDetails.id ? { ...c, latitud: parseFloat(editLat), longitud: parseFloat(editLng) } : c));
+      setSelectedCtoDetails(prev => ({ ...prev, latitud: parseFloat(editLat), longitud: parseFloat(editLng) }));
+      setIsEditingLocation(false);
+      showNotification('Ubicación actualizada correctamente');
     } catch (error) {
       showNotification(error.message, 'error');
     } finally {
@@ -423,20 +482,27 @@ function App() {
           {/* Mapa */}
           <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
             <LayersControl position="bottomleft">
-              <LayersControl.BaseLayer checked name="Carto Dark">
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer') || 'Carto Dark') === 'Carto Dark'} name="Carto Dark">
                 <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
               </LayersControl.BaseLayer>
-              <LayersControl.BaseLayer name="Carto Light">
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Carto Light'} name="Carto Light">
                 <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
               </LayersControl.BaseLayer>
-              <LayersControl.BaseLayer name="OpenStreetMap">
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'OpenStreetMap'} name="OpenStreetMap">
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               </LayersControl.BaseLayer>
-              <LayersControl.BaseLayer name="Satélite">
-                <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Mapa Estándar'} name="Google Mapa Estándar">
+                <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Satélite'} name="Google Satélite">
+                <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Híbrido'} name="Google Híbrido">
+                <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
               </LayersControl.BaseLayer>
             </LayersControl>
 
+            <ActiveLayerListener />
             <MapController center={mapCenter} zoom={mapZoom} />
             <MapBoundsListener onBoundsChange={setMapBounds} />
 
@@ -477,25 +543,57 @@ function App() {
           <div className="mobile-panel-list" style={{ paddingBottom: '10px' }}>
             {visibleClusters.map(vc => {
               const isSelected = selectedClusterNames.includes(vc.nombre);
+              const isExpanded = expandedClusters.includes(vc.nombre);
               const pct = vc.total > 0 ? Math.round((vc.auditadas / vc.total) * 100) : 0;
+              const clusterCtos = filteredCtos.filter(c => c.clusterNombre === vc.nombre);
+              
               return (
-                <div key={vc.nombre} className={`mobile-cluster-card ${isSelected ? 'active' : ''}`} onClick={() => toggleClusterSelection(vc.nombre)}>
-                  <div className="mobile-cluster-left">
-                    <div className="mobile-cluster-info">
-                      <div className="mobile-cluster-name">{vc.nombre}</div>
-                      <div className="mobile-cluster-meta" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span>{vc.total} CTOs</span>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: getTechColor(vc.tecnicoAsignado) }}></div>
-                        <span>{vc.tecnicoAsignado}</span>
+                <div key={vc.nombre} className="mobile-cluster-card-container">
+                  <div className={`mobile-cluster-card ${isSelected ? 'active' : ''}`} onClick={(e) => toggleClusterSelection(vc.nombre, e)}>
+                    <div className="mobile-cluster-left" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div 
+                        onClick={(e) => toggleClusterExpansion(vc.nombre, e)}
+                        style={{ padding: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </div>
+                      <div className="mobile-cluster-info">
+                        <div className="mobile-cluster-name">{vc.nombre}</div>
+                        <div className="mobile-cluster-meta" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span>{vc.total} CTOs</span>
+                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: getTechColor(vc.tecnicoAsignado) }}></div>
+                          <span>{vc.tecnicoAsignado}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mobile-cluster-right">
+                      <div className="mobile-cluster-progress-container">
+                        <div className="mobile-cluster-progress-text">{pct}%</div>
+                        <div className="mobile-cluster-progress-bar"><div className="mobile-cluster-progress-fill" style={{ width: `${pct}%` }}></div></div>
                       </div>
                     </div>
                   </div>
-                  <div className="mobile-cluster-right">
-                    <div className="mobile-cluster-progress-container">
-                      <div className="mobile-cluster-progress-text">{pct}%</div>
-                      <div className="mobile-cluster-progress-bar"><div className="mobile-cluster-progress-fill" style={{ width: `${pct}%` }}></div></div>
+                  {isExpanded && (
+                    <div style={{ padding: '8px 12px 8px 36px', background: 'rgba(0,0,0,0.2)', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
+                      {clusterCtos.map(c => (
+                        <div 
+                          key={c.id} 
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
+                          onClick={() => handleSelectCto(c.id)}
+                        >
+                          <div style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c.estadoAuditoria === 'CORRECTO' ? '#10b981' : c.estadoAuditoria === 'FALLO' ? '#ef4444' : '#94a3b8' }}></div>
+                            {c.codigo}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            {c.estadoAuditoria || 'PENDIENTE'}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
@@ -518,7 +616,7 @@ function App() {
                   <Info size={22} />
                 </a>
                 <a 
-                  href={`https://cto-tracker.olin.es/${selectedCtoDetails.codigo}`} 
+                  href={`https://cto-tracker.olin.es/cto/${selectedCtoDetails.codigo}`} 
                   target="_blank" 
                   rel="noreferrer"
                   title="Abrir en CTO Tracker"
@@ -541,12 +639,55 @@ function App() {
             <div className="info-content" style={{ padding: '0 20px 20px 20px' }}>
               
               <div className="meta-item" style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px' }}>
-                <span className="meta-label">Estado Auditoría: </span>
-                <strong style={{
-                  color: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : '#94a3b8'
-                }}>
-                  {selectedCtoDetails.estadoAuditoria || 'PENDIENTE'}
-                </strong>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="meta-label">Estado Auditoría: </span>
+                  <strong style={{
+                    color: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : '#94a3b8'
+                  }}>
+                    {selectedCtoDetails.estadoAuditoria || 'PENDIENTE'}
+                  </strong>
+                </div>
+                
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span className="meta-label">Ubicación GPS:</span>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '4px 8px', fontSize: '11px', height: 'auto', borderRadius: '4px' }}
+                      onClick={() => setIsEditingLocation(!isEditingLocation)}
+                    >
+                      {isEditingLocation ? 'Cancelar' : 'Editar Ubicación'}
+                    </button>
+                  </div>
+                  
+                  {isEditingLocation ? (
+                    <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '6px' }} placeholder="Latitud" value={editLat} onChange={e => setEditLat(e.target.value)} />
+                        <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '6px' }} placeholder="Longitud" value={editLng} onChange={e => setEditLng(e.target.value)} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-secondary" style={{ flex: 1, padding: '6px', fontSize: '12px' }} onClick={() => {
+                          if (userLocation) {
+                            setEditLat(userLocation[0]);
+                            setEditLng(userLocation[1]);
+                          } else {
+                            showNotification('Ubicación no disponible', 'error');
+                          }
+                        }}>
+                          Usar mi ubicación
+                        </button>
+                        <button className="btn btn-success" style={{ flex: 1, padding: '6px', fontSize: '12px' }} onClick={handleUpdateLocation} disabled={loading}>
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {selectedCtoDetails.latitud}, {selectedCtoDetails.longitud}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div style={{ position: 'relative', marginBottom: '16px' }}>

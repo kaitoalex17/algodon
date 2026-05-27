@@ -88,4 +88,11 @@ public class CTO {
 
     @Column(name = "comentarios", columnDefinition = "TEXT")
     private String comentarios;
+
+    @Column(name = "origen")
+    private String origen = "IMPORTADA"; // IMPORTADA or MANUAL
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "creador_id")
+    private Usuario creador;
 }

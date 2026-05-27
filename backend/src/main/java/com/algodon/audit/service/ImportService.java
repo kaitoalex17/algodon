@@ -3,6 +3,8 @@ package com.algodon.audit.service;
 import com.algodon.audit.entity.CTO;
 import com.algodon.audit.entity.Cluster;
 import com.algodon.audit.entity.Zona;
+import com.algodon.audit.entity.CTODuplicada;
+import com.algodon.audit.repository.CTODuplicadaRepository;
 import com.algodon.audit.repository.CTORepository;
 import com.algodon.audit.repository.ClusterRepository;
 import com.algodon.audit.repository.ZonaRepository;
@@ -29,6 +31,7 @@ public class ImportService {
     private final ZonaRepository zonaRepository;
     private final ClusterRepository clusterRepository;
     private final CTORepository ctoRepository;
+    private final CTODuplicadaRepository ctoDuplicadaRepository;
     
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
@@ -56,7 +59,7 @@ public class ImportService {
     @Transactional
     public Map<String, Object> importExcel(MultipartFile file, Map<String, String> mapping) throws Exception {
         int importedCount = 0;
-        int updatedCount = 0;
+        int duplicateCount = 0;
 
         try (InputStream is = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(is)) {
@@ -158,12 +161,23 @@ public class ImportService {
                 });
 
                 Optional<CTO> existingCto = ctoRepository.findByCodigo(codigo);
-                CTO cto = existingCto.orElseGet(CTO::new);
                 if (existingCto.isPresent()) {
-                    updatedCount++;
-                } else {
-                    importedCount++;
+                    duplicateCount++;
+                    CTODuplicada duplicada = new CTODuplicada();
+                    duplicada.setCodigo(codigo);
+                    duplicada.setCluster(clusterNombre);
+                    duplicada.setZona(zonaNombre);
+                    duplicada.setLatitud(getFieldValueAsDouble(currentRow, fieldToIndex.get("latitud")));
+                    duplicada.setLongitud(getFieldValueAsDouble(currentRow, fieldToIndex.get("longitud")));
+                    duplicada.setMunicipio(getFieldValueAsString(currentRow, fieldToIndex.get("municipio")));
+                    duplicada.setProvincia(getFieldValueAsString(currentRow, fieldToIndex.get("provincia")));
+                    duplicada.setEstado(getFieldValueAsString(currentRow, fieldToIndex.get("estado")));
+                    ctoDuplicadaRepository.save(duplicada);
+                    continue; // Skip updating main CTO
                 }
+                
+                importedCount++;
+                CTO cto = new CTO();
 
                 cto.setCodigo(codigo);
                 cto.setCluster(cluster);
@@ -206,7 +220,7 @@ public class ImportService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("imported", importedCount);
-        result.put("updated", updatedCount);
+        result.put("duplicates", duplicateCount);
         return result;
     }
 

@@ -116,4 +116,97 @@ public class CTOController {
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @PutMapping("/{id}/location")
+    public ResponseEntity<?> updateLocation(@PathVariable Long id, @RequestBody com.algodon.audit.dto.LocationRequest request) {
+        return ctoRepository.findById(id)
+                .map(cto -> {
+                    if (request.getLatitud() != null && request.getLongitud() != null) {
+                        cto.setLatitud(request.getLatitud());
+                        cto.setLongitud(request.getLongitud());
+                        org.locationtech.jts.geom.GeometryFactory geometryFactory = new org.locationtech.jts.geom.GeometryFactory(new org.locationtech.jts.geom.PrecisionModel(), 4326);
+                        cto.setGeom(geometryFactory.createPoint(new org.locationtech.jts.geom.Coordinate(request.getLongitud(), request.getLatitud())));
+                        ctoRepository.save(cto);
+                        return ResponseEntity.ok().build();
+                    }
+                    return ResponseEntity.badRequest().build();
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportCTOs() {
+        List<CTO> ctos = ctoRepository.findAll();
+
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("CTOs");
+
+            // Header
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            String[] columns = {"ID", "Código", "Latitud", "Longitud", "Zona", "Cluster", "Estado Auditoría", "Auditada", "Comentarios", "Técnico Asignado"};
+            for (int i = 0; i < columns.length; i++) {
+                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                cell.setCellValue(columns[i]);
+            }
+
+            // Data
+            int rowIdx = 1;
+            for (CTO cto : ctos) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(cto.getId() != null ? cto.getId().toString() : "");
+                row.createCell(1).setCellValue(cto.getCodigo() != null ? cto.getCodigo() : "");
+                if (cto.getLatitud() != null) row.createCell(2).setCellValue(cto.getLatitud());
+                if (cto.getLongitud() != null) row.createCell(3).setCellValue(cto.getLongitud());
+                if (cto.getZona() != null) row.createCell(4).setCellValue(cto.getZona().getNombre());
+                if (cto.getCluster() != null) row.createCell(5).setCellValue(cto.getCluster().getNombre());
+                if (cto.getEstadoAuditoria() != null) row.createCell(6).setCellValue(cto.getEstadoAuditoria());
+                row.createCell(7).setCellValue(cto.isAuditada() ? "Sí" : "No");
+                if (cto.getComentarios() != null) row.createCell(8).setCellValue(cto.getComentarios());
+                if (cto.getTecnicoAsignado() != null) row.createCell(9).setCellValue(cto.getTecnicoAsignado().getNombre());
+            }
+
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            workbook.write(out);
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.add("Content-Disposition", "attachment; filename=ctos_export.xlsx");
+
+            return org.springframework.http.ResponseEntity
+                    .ok()
+                    .headers(headers)
+                    .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(out.toByteArray());
+        } catch (java.io.IOException e) {
+            return org.springframework.http.ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteCTO(@PathVariable Long id) {
+        return ctoRepository.findById(id)
+                .map(cto -> {
+                    ctoRepository.delete(cto);
+                    return ResponseEntity.ok().build();
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createCTO(@RequestBody CTO ctoRequest) {
+        if (ctoRequest.getCodigo() == null || ctoRequest.getCodigo().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("El código es obligatorio");
+        }
+        if (ctoRepository.findByCodigo(ctoRequest.getCodigo()).isPresent()) {
+            return ResponseEntity.badRequest().body("El código ya existe");
+        }
+        
+        ctoRequest.setOrigen("MANUAL");
+
+        if (ctoRequest.getLatitud() != null && ctoRequest.getLongitud() != null) {
+            org.locationtech.jts.geom.GeometryFactory geometryFactory = new org.locationtech.jts.geom.GeometryFactory(new org.locationtech.jts.geom.PrecisionModel(), 4326);
+            ctoRequest.setGeom(geometryFactory.createPoint(new org.locationtech.jts.geom.Coordinate(ctoRequest.getLongitud(), ctoRequest.getLatitud())));
+        }
+
+        return ResponseEntity.ok(ctoRepository.save(ctoRequest));
+    }
 }

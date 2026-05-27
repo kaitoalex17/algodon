@@ -107,7 +107,7 @@ export default function CtoDetail() {
             </a>
             
             <a 
-              href={`https://cto-tracker.olin.es/${cto.codigo}`} 
+              href={`https://cto-tracker.olin.es/cto/${cto.codigo}`} 
               target="_blank" 
               rel="noreferrer"
               className="btn btn-secondary"

@@ -20,6 +20,7 @@ const getBaseUrl = () => {
 const BASE_URL = getBaseUrl();
 
 export const api = {
+  getBaseUrl,
   // Importación
   importExcel: async (file, mapping) => {
     const formData = new FormData();
@@ -80,6 +81,87 @@ export const api = {
       body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error('Error al actualizar la auditoría');
+    return true;
+  },
+
+  updateCTOLocation: async (id, latitud, longitud) => {
+    const response = await fetch(`${BASE_URL}/api/ctos/${id}/location`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ latitud, longitud }),
+    });
+    if (!response.ok) throw new Error('Error al actualizar la ubicación');
+    return true;
+  },
+
+  deleteCTO: async (id) => {
+    const response = await fetch(`${BASE_URL}/api/ctos/${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar la CTO');
+    return true;
+  },
+
+  createCTO: async (data) => {
+    const response = await fetch(`${BASE_URL}/api/ctos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const txt = await response.text();
+      throw new Error(txt || 'Error al crear la CTO');
+    }
+    return await response.json();
+  },
+
+  // Estados CTO
+  getEstados: async () => {
+    const response = await fetch(`${BASE_URL}/api/estados-cto`);
+    if (!response.ok) throw new Error('Error al obtener estados');
+    return await response.json();
+  },
+
+  createEstado: async (nombre, color) => {
+    const response = await fetch(`${BASE_URL}/api/estados-cto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, color })
+    });
+    if (!response.ok) throw new Error('Error al crear estado');
+    return await response.json();
+  },
+
+  deleteEstado: async (id) => {
+    const response = await fetch(`${BASE_URL}/api/estados-cto/${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar estado');
+    return true;
+  },
+
+  // Duplicadas
+  getDuplicadas: async () => {
+    const response = await fetch(`${BASE_URL}/api/import/duplicadas`);
+    if (!response.ok) throw new Error('Error al obtener duplicadas');
+    return await response.json();
+  },
+
+  deleteDuplicada: async (id) => {
+    const response = await fetch(`${BASE_URL}/api/import/duplicadas/${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar duplicada');
+    return true;
+  },
+
+  deleteAllDuplicadas: async () => {
+    const response = await fetch(`${BASE_URL}/api/import/duplicadas`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar duplicadas');
     return true;
   },
 
