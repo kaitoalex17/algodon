@@ -1,11 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, Users, Grid, CheckCircle, Send, Loader2, Check, AlertTriangle, Database } from 'lucide-react';
+import { UploadCloud, Users, Grid, CheckCircle, Send, Loader2, Check, AlertTriangle, Database, Sun, Moon } from 'lucide-react';
 import { api } from './api';
 
 function AdminApp() {
   const [activeTab, setActiveTab] = useState('import');
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Tema
+  const [theme, setTheme] = useState(() => window.localStorage.getItem('algodon_theme') || 'dark');
+
+  useEffect(() => {
+    window.localStorage.setItem('algodon_theme', theme);
+    if (theme === 'light') {
+      document.body.classList.add('theme-light');
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+  }, [theme]);
 
   // Data states
   const [zonas, setZonas] = useState([]);
@@ -333,6 +345,14 @@ function AdminApp() {
           <button className={`btn ${activeTab === 'system' ? 'btn-danger' : 'btn-secondary'}`} onClick={() => setActiveTab('system')}>
             <Database size={16} style={{marginRight: '6px'}} /> Sistema
           </button>
+          <button 
+            className="btn btn-secondary" 
+            style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            title={theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+          >
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
         </div>
       </header>
 
@@ -640,25 +660,15 @@ function AdminApp() {
               <div className="card" style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.05)' }}>
                 <h3>Añadir CTO</h3>
                 <form onSubmit={handleCreateCTO} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input type="text" className="form-input" placeholder="Código CTO" required value={newCTOData.codigo} onChange={e => setNewCTOData({...newCTOData, codigo: e.target.value})} />
-                    <select className="form-input" value={newCTOData.zonaId} onChange={e => setNewCTOData({...newCTOData, zonaId: e.target.value, clusterId: ''})} required>
-                      <option value="">-- Seleccionar Zona --</option>
-                      {zonas.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}
-                    </select>
-                    <select className="form-input" value={newCTOData.clusterId} onChange={e => setNewCTOData({...newCTOData, clusterId: e.target.value})} required disabled={!newCTOData.zonaId}>
-                      <option value="">-- Seleccionar Cluster --</option>
-                      {zonas.find(z => z.id === parseInt(newCTOData.zonaId))?.clusters.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input type="number" step="any" className="form-input" placeholder="Latitud" required value={newCTOData.latitud} onChange={e => setNewCTOData({...newCTOData, latitud: e.target.value})} />
-                    <input type="number" step="any" className="form-input" placeholder="Longitud" required value={newCTOData.longitud} onChange={e => setNewCTOData({...newCTOData, longitud: e.target.value})} />
-                    <select className="form-input" value={newCTOData.estado} onChange={e => setNewCTOData({...newCTOData, estado: e.target.value})}>
-                      <option value="">-- Estado (Opcional) --</option>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <input type="text" className="form-input" style={{ flex: '1 1 200px', fontSize: '16px' }} placeholder="Número CTO" required value={newCTOData.codigo} onChange={e => setNewCTOData({...newCTOData, codigo: e.target.value})} />
+                    <input type="number" step="any" className="form-input" style={{ flex: '1 1 150px', fontSize: '16px' }} placeholder="Latitud" required value={newCTOData.latitud} onChange={e => setNewCTOData({...newCTOData, latitud: e.target.value})} />
+                    <input type="number" step="any" className="form-input" style={{ flex: '1 1 150px', fontSize: '16px' }} placeholder="Longitud" required value={newCTOData.longitud} onChange={e => setNewCTOData({...newCTOData, longitud: e.target.value})} />
+                    <select className="form-input" style={{ flex: '1 1 200px', fontSize: '16px' }} value={newCTOData.estado} onChange={e => setNewCTOData({...newCTOData, estado: e.target.value})} required>
+                      <option value="">-- Seleccionar Estado --</option>
                       {estados.map(est => <option key={est.id} value={est.nombre}>{est.nombre}</option>)}
                     </select>
-                    <button type="submit" className="btn btn-primary" disabled={loading}>Guardar CTO</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: '0 0 auto' }} disabled={loading}>Guardar CTO</button>
                   </div>
                 </form>
               </div>

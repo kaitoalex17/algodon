@@ -30,6 +30,26 @@
   --shadow-glow: 0 0 15px rgba(139, 92, 246, 0.15);
   
   --blur-md: blur(12px);
+  --bg-drawer: rgba(15, 17, 28, 0.98);
+  --border-drawer: rgba(139, 92, 246, 0.4);
+  --text-drawer-title: #ffffff;
+  --bg-drawer-card: rgba(255, 255, 255, 0.03);
+  --border-drawer-card: rgba(255, 255, 255, 0.06);
+}
+
+body.theme-light {
+  --bg-main: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-sidebar: rgba(241, 245, 249, 0.9);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-light: rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  --bg-drawer: rgba(255, 255, 255, 0.98);
+  --border-drawer: rgba(139, 92, 246, 0.3);
+  --text-drawer-title: #0f172a;
+  --bg-drawer-card: rgba(15, 23, 42, 0.03);
+  --border-drawer-card: rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -170,7 +190,7 @@ body, html {
   padding: 12px 16px;
   color: var(--text-main);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
   outline: none;
   transition: all 0.2s ease;
 }
@@ -608,7 +628,7 @@ input:checked + .slider:before {
 
 .mobile-panel-header {
   padding: 12px 16px;
-  background: rgba(18, 20, 29, 0.9);
+  background: var(--bg-sidebar);
   backdrop-filter: var(--blur-md);
   border-bottom: 1px solid var(--border-light);
   display: flex;
@@ -621,7 +641,7 @@ input:checked + .slider:before {
   font-family: var(--font-heading);
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -643,7 +663,7 @@ input:checked + .slider:before {
 
 /* Compact Cluster Item Styles */
 .mobile-cluster-card {
-  background: rgba(18, 20, 29, 0.6);
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 10px 14px;
@@ -697,7 +717,7 @@ input:checked + .slider:before {
   font-family: var(--font-heading);
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .mobile-cluster-meta {
@@ -729,7 +749,7 @@ input:checked + .slider:before {
 .mobile-cluster-progress-bar {
   height: 4px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--border-light);
   border-radius: 2px;
   overflow: hidden;
 }

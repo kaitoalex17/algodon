@@ -16,7 +16,9 @@ import {
   ExternalLink,
   Save,
   Info,
-  Plus
+  Plus,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { api } from './api';
 import 'leaflet/dist/leaflet.css';
@@ -77,17 +79,18 @@ function MapBoundsListener({ onBoundsChange }) {
   return null;
 }
 
-function ActiveLayerListener() {
+function ActiveLayerListener({ setActiveLayer }) {
   const map = useMap();
   useEffect(() => {
     const handleLayerChange = (e) => {
       window.localStorage.setItem('algodon_active_layer', e.name);
+      setActiveLayer(e.name);
     };
     map.on('baselayerchange', handleLayerChange);
     return () => {
       map.off('baselayerchange', handleLayerChange);
     };
-  }, [map]);
+  }, [map, setActiveLayer]);
   return null;
 }
 
@@ -162,10 +165,37 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCtoDetails, setSelectedCtoDetails] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-  const savedCenter = JSON.parse(window.localStorage.getItem('algodon_map_center')) || [40.416775, -3.703790];
-  const savedZoom = JSON.parse(window.localStorage.getItem('algodon_map_zoom')) || 6;
+  const savedCenter = JSON.parse(window.localStorage.getItem('algodon_map_center')) || [36.429342, -5.140716];
+  const savedZoom = JSON.parse(window.localStorage.getItem('algodon_map_zoom')) || 13;
   const [mapCenter, setMapCenter] = useState(savedCenter);
   const [mapZoom, setMapZoom] = useState(savedZoom);
+
+  // Tema y Capa Activa
+  const [theme, setTheme] = useState(() => window.localStorage.getItem('algodon_theme') || 'dark');
+  const [activeLayer, setActiveLayer] = useState(() => window.localStorage.getItem('algodon_active_layer') || 'Carto Dark');
+
+  useEffect(() => {
+    window.localStorage.setItem('algodon_theme', theme);
+    if (theme === 'light') {
+      document.body.classList.add('theme-light');
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (theme === 'light') {
+      if (activeLayer === 'Carto Dark') {
+        setActiveLayer('Carto Light');
+        window.localStorage.setItem('algodon_active_layer', 'Carto Light');
+      }
+    } else {
+      if (activeLayer === 'Carto Light') {
+        setActiveLayer('Carto Dark');
+        window.localStorage.setItem('algodon_active_layer', 'Carto Dark');
+      }
+    }
+  }, [theme]);
   const [mapBounds, setMapBounds] = useState(null);
   
   // Clusters
@@ -215,10 +245,6 @@ function App() {
       const ctoData = await api.getCTOs();
       setCtos(ctoData);
       
-      if (ctoData.length > 0 && !window.localStorage.getItem('algodon_map_center')) {
-        setMapCenter([ctoData[0].latitud, ctoData[0].longitud]);
-        setMapZoom(13);
-      }
       const usuariosData = await api.getUsuarios();
       setUsuarios(usuariosData);
       
@@ -435,7 +461,7 @@ function App() {
 
   const handleCreateCTO = async (e) => {
     e.preventDefault();
-    if (!newCtoData.codigo || !newCtoData.latitud || !newCtoData.longitud || !newCtoData.clusterId) {
+    if (!newCtoData.codigo || !newCtoData.latitud || !newCtoData.longitud) {
       showNotification('Por favor, rellena todos los campos obligatorios', 'error');
       return;
     }
@@ -447,7 +473,7 @@ function App() {
         latitud: parseFloat(newCtoData.latitud),
         longitud: parseFloat(newCtoData.longitud),
         estado: newCtoData.estado || 'PENDIENTE',
-        cluster: { id: parseInt(newCtoData.clusterId) }
+        cluster: null
       };
 
       await api.createCTO(payload);
@@ -495,7 +521,7 @@ function App() {
                 placeholder="Buscar CTO..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', marginLeft: '8px', fontSize: '14px' }}
+                style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', marginLeft: '8px', fontSize: '16px' }}
               />
               {searchTerm && <X size={16} className="text-muted" onClick={() => setSearchTerm('')} />}
             </div>
@@ -515,6 +541,15 @@ function App() {
               title="Añadir CTO Manual"
             >
               <Plus size={18} />
+            </button>
+
+            <button 
+              className="btn btn-secondary" 
+              style={{ padding: '8px', borderRadius: '12px', minWidth: '42px', display: 'flex', justifyContent: 'center' }}
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              title={theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+            >
+              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
           </div>
 
@@ -587,7 +622,7 @@ function App() {
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Técnico</label>
               <select 
                 className="form-input" 
-                style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                style={{ width: '100%', fontSize: '16px', padding: '8px' }}
                 value={selectedFilterTech}
                 onChange={(e) => setSelectedFilterTech(e.target.value)}
               >
@@ -601,7 +636,7 @@ function App() {
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Zona</label>
               <select 
                 className="form-input" 
-                style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                style={{ width: '100%', fontSize: '16px', padding: '8px' }}
                 value={selectedFilterZona}
                 onChange={(e) => setSelectedFilterZona(e.target.value)}
               >
@@ -614,7 +649,7 @@ function App() {
               <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Filtrar por Estado</label>
               <select 
                 className="form-input" 
-                style={{ width: '100%', fontSize: '13px', padding: '6px' }}
+                style={{ width: '100%', fontSize: '16px', padding: '8px' }}
                 value={selectedFilterEstado}
                 onChange={(e) => setSelectedFilterEstado(e.target.value)}
               >
@@ -632,27 +667,27 @@ function App() {
               {/* Mapa */}
               <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
                 <LayersControl position="bottomleft">
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer') || 'Carto Dark') === 'Carto Dark'} name="Carto Dark">
+                  <LayersControl.BaseLayer checked={activeLayer === 'Carto Dark'} name="Carto Dark">
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
                   </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Carto Light'} name="Carto Light">
+                  <LayersControl.BaseLayer checked={activeLayer === 'Carto Light'} name="Carto Light">
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
                   </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'OpenStreetMap'} name="OpenStreetMap">
+                  <LayersControl.BaseLayer checked={activeLayer === 'OpenStreetMap'} name="OpenStreetMap">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Mapa Estándar'} name="Google Mapa Estándar">
+                  <LayersControl.BaseLayer checked={activeLayer === 'Google Mapa Estándar'} name="Google Mapa Estándar">
                     <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
                   </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Satélite'} name="Google Satélite">
+                  <LayersControl.BaseLayer checked={activeLayer === 'Google Satélite'} name="Google Satélite">
                     <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
                   </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer checked={(window.localStorage.getItem('algodon_active_layer')) === 'Google Híbrido'} name="Google Híbrido">
+                  <LayersControl.BaseLayer checked={activeLayer === 'Google Híbrido'} name="Google Híbrido">
                     <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
                   </LayersControl.BaseLayer>
                 </LayersControl>
 
-                <ActiveLayerListener />
+                <ActiveLayerListener setActiveLayer={setActiveLayer} />
                 <MapController center={mapCenter} zoom={mapZoom} />
                 <MapBoundsListener onBoundsChange={setMapBounds} />
 
@@ -909,139 +944,239 @@ function App() {
           </div>
         )}
 
-        {/* Detalles Popup (Full Screen sobre Map) */}
+        {/* Detalles Popup (Full Screen Drawer) */}
         {selectedCtoDetails && (
-          <div className="info-sidebar" style={{ position: 'fixed', top: 'auto', bottom: 0, right: 0, left: 0, height: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', zIndex: 2000, border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="info-header" style={{ padding: '16px 20px' }}>
-              <div className="info-title">CTO {selectedCtoDetails.codigo}</div>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div className="info-sidebar" style={{ 
+            position: 'fixed', 
+            top: 'auto', 
+            bottom: 0, 
+            right: 0, 
+            left: 0, 
+            height: 'auto', 
+            borderTopLeftRadius: '24px', 
+            borderTopRightRadius: '24px', 
+            zIndex: 2000, 
+            border: 'none', 
+            borderTop: '2px solid var(--border-drawer)',
+            background: 'var(--bg-drawer)',
+            backdropFilter: 'blur(16px)',
+            boxShadow: '0 -10px 25px rgba(0, 0, 0, 0.15)'
+          }}>
+            {/* iOS Pill Handle */}
+            <div style={{ width: '36px', height: '4px', background: 'rgba(139, 92, 246, 0.2)', borderRadius: '2px', margin: '10px auto 0 auto' }}></div>
+
+            <div className="info-header" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-drawer-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '10px', color: 'var(--primary)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '2px' }}>Detalles de CTO</span>
+                <div className="info-title" style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{selectedCtoDetails.codigo}</span>
+                  {selectedCtoDetails.estado && (
+                    <span style={{
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      background: 'rgba(139, 92, 246, 0.12)',
+                      color: 'var(--primary)',
+                      fontWeight: '600',
+                      border: '1px solid rgba(139, 92, 246, 0.2)'
+                    }}>
+                      {selectedCtoDetails.estado}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <a 
                   href={`/#/cto/${selectedCtoDetails.id}`} 
                   target="_blank" 
                   rel="noreferrer"
-                  title="Más detalles"
-                  style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}
+                  title="Ficha técnica"
+                  style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', padding: '6px', background: 'rgba(139,92,246,0.08)', borderRadius: '8px' }}
                 >
-                  <Info size={22} />
+                  <Info size={18} />
                 </a>
                 <a 
                   href={`https://cto-tracker.olin.es/cto/${selectedCtoDetails.codigo}`} 
                   target="_blank" 
                   rel="noreferrer"
                   title="Abrir en CTO Tracker"
-                  style={{ color: '#10b981', display: 'flex', alignItems: 'center' }}
+                  style={{ color: '#10b981', display: 'flex', alignItems: 'center', padding: '6px', background: 'rgba(16,185,129,0.08)', borderRadius: '8px' }}
                 >
-                  <HardDrive size={22} />
+                  <HardDrive size={18} />
                 </a>
                 <a 
                   href={`https://www.google.com/maps/search/?api=1&query=${selectedCtoDetails.latitud},${selectedCtoDetails.longitud}`} 
                   target="_blank" 
                   rel="noreferrer"
                   title="Ver en Google Maps"
-                  style={{ color: '#8b5cf6', display: 'flex', alignItems: 'center' }}
+                  style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', padding: '6px', background: 'rgba(59,130,246,0.08)', borderRadius: '8px' }}
                 >
-                  <MapIcon size={22} />
+                  <MapIcon size={18} />
                 </a>
-                <X size={24} className="text-muted" onClick={() => setSelectedCtoDetails(null)} style={{ cursor: 'pointer', marginLeft: '8px' }} />
+                <button 
+                  onClick={() => setSelectedCtoDetails(null)} 
+                  style={{ background: 'var(--bg-drawer-card)', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', borderRadius: '8px', marginLeft: '4px' }}
+                >
+                  <X size={18} />
+                </button>
               </div>
             </div>
-            <div className="info-content" style={{ padding: '0 20px 20px 20px' }}>
+
+            <div className="info-content" style={{ padding: '16px 20px 20px 20px' }}>
               
-              <div className="meta-item" style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="meta-label">Estado Auditoría: </span>
-                  <strong style={{
-                    color: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : '#94a3b8'
-                  }}>
-                    {selectedCtoDetails.estadoAuditoria || 'PENDIENTE'}
-                  </strong>
+              {/* Grid de Zona, Cluster y Técnico */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--bg-drawer-card)', border: '1px solid var(--border-drawer-card)', padding: '8px 10px', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Zona</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '500', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedCtoDetails.zonaNombre || 'Sin Zona'}
+                  </span>
                 </div>
-                
-                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="meta-label">Ubicación GPS:</span>
-                    <button 
-                      className="btn btn-secondary" 
-                      style={{ padding: '4px 8px', fontSize: '11px', height: 'auto', borderRadius: '4px' }}
-                      onClick={() => setIsEditingLocation(!isEditingLocation)}
-                    >
-                      {isEditingLocation ? 'Cancelar' : 'Editar Ubicación'}
-                    </button>
-                  </div>
-                  
-                  {isEditingLocation ? (
-                    <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '6px' }} placeholder="Latitud" value={editLat} onChange={e => setEditLat(e.target.value)} />
-                        <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '6px' }} placeholder="Longitud" value={editLng} onChange={e => setEditLng(e.target.value)} />
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-secondary" style={{ flex: 1, padding: '6px', fontSize: '12px' }} onClick={() => {
-                          if (userLocation) {
-                            setEditLat(userLocation[0]);
-                            setEditLng(userLocation[1]);
-                          } else {
-                            showNotification('Ubicación no disponible', 'error');
-                          }
-                        }}>
-                          Usar mi ubicación
-                        </button>
-                        <button className="btn btn-success" style={{ flex: 1, padding: '6px', fontSize: '12px' }} onClick={handleUpdateLocation} disabled={loading}>
-                          Guardar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                      {selectedCtoDetails.latitud}, {selectedCtoDetails.longitud}
-                    </div>
-                  )}
+                <div style={{ background: 'var(--bg-drawer-card)', border: '1px solid var(--border-drawer-card)', padding: '8px 10px', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Cluster</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '500', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedCtoDetails.clusterNombre || 'Sin Cluster'}
+                  </span>
+                </div>
+                <div style={{ background: 'var(--bg-drawer-card)', border: '1px solid var(--border-drawer-card)', padding: '8px 10px', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Técnico</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: getTechColor(selectedCtoDetails.tecnicoAsignado) }}></span>
+                    {selectedCtoDetails.tecnicoAsignado || 'Sin Asignar'}
+                  </span>
                 </div>
               </div>
 
+              {/* Caja de Estado y Coordenadas */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--bg-drawer-card)', border: '1px solid var(--border-drawer-card)', padding: '12px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Estado Auditoría</span>
+                    <span style={{ 
+                      fontSize: '13px', 
+                      fontWeight: '700', 
+                      color: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      {selectedCtoDetails.estadoAuditoria || 'PENDIENTE'}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Coordenadas GPS</span>
+                    <span style={{ fontSize: '12px', color: 'var(--text-main)', fontFamily: 'monospace' }}>
+                      {selectedCtoDetails.latitud?.toFixed(5)}, {selectedCtoDetails.longitud?.toFixed(5)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Edición de Ubicación */}
+                {isEditingLocation ? (
+                  <div style={{ background: 'var(--bg-drawer-card)', border: '1px solid var(--border-drawer-card)', padding: '12px', borderRadius: '12px', display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'bold' }}>Modificar Coordenadas:</span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '8px', fontSize: '16px' }} placeholder="Latitud" value={editLat} onChange={e => setEditLat(e.target.value)} />
+                      <input type="number" step="any" className="form-input" style={{ flex: 1, padding: '8px', fontSize: '16px' }} placeholder="Longitud" value={editLng} onChange={e => setEditLng(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button type="button" className="btn btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '12px' }} onClick={() => {
+                        if (userLocation) {
+                          setEditLat(userLocation[0]);
+                          setEditLng(userLocation[1]);
+                        } else {
+                          showNotification('Ubicación no disponible', 'error');
+                        }
+                      }}>
+                        Usar GPS Móvil
+                      </button>
+                      <button type="button" className="btn btn-success" style={{ flex: 1, padding: '8px', fontSize: '12px' }} onClick={handleUpdateLocation} disabled={loading}>
+                        Guardar Cambios
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ padding: '8px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px' }}
+                    onClick={() => setIsEditingLocation(true)}
+                  >
+                    <Navigation size={14} />
+                    <span>Editar Ubicación de CTO</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Sección de Notas / Comentarios */}
               <div style={{ position: 'relative', marginBottom: '16px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Notas / Comentarios:</label>
                 <textarea 
                   className="form-input"
-                  style={{ height: '60px', resize: 'none', fontSize: '14px', width: '100%', paddingRight: '40px' }}
+                  style={{ height: '70px', resize: 'none', fontSize: '16px', width: '100%', paddingRight: '42px', paddingLeft: '12px', paddingTop: '8px', borderRadius: '10px' }}
                   value={editComentarios}
                   onChange={(e) => setEditComentarios(e.target.value)}
-                  placeholder="Comentarios o notas de la caja..."
+                  placeholder="Añade notas del estado de la CTO..."
                 />
                 <button 
                   onClick={handleSaveComment}
                   disabled={loading || editComentarios === (selectedCtoDetails.comentarios || '')}
                   style={{ 
-                    position: 'absolute', right: '8px', bottom: '8px', 
-                    background: 'transparent', border: 'none', 
+                    position: 'absolute', right: '10px', bottom: '10px', 
+                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', 
                     color: editComentarios !== (selectedCtoDetails.comentarios || '') ? 'var(--primary)' : 'var(--text-muted)',
-                    cursor: editComentarios !== (selectedCtoDetails.comentarios || '') ? 'pointer' : 'default'
+                    cursor: editComentarios !== (selectedCtoDetails.comentarios || '') ? 'pointer' : 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '50%'
                   }}
                   title="Guardar notas"
                 >
-                  <Save size={20} />
+                  <Save size={16} />
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {/* Botones de Acción de Auditoría */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '8px' }}>
                 <button 
-                  className={`btn ${selectedCtoDetails.estadoAuditoria === 'PENDIENTE' ? 'btn-secondary' : ''}`}
-                  style={{ background: selectedCtoDetails.estadoAuditoria === 'PENDIENTE' ? '#334155' : 'rgba(255,255,255,0.05)', color: '#fff' }}
+                  className="btn"
+                  style={{ 
+                    background: selectedCtoDetails.estadoAuditoria === 'PENDIENTE' ? '#475569' : 'rgba(255,255,255,0.04)', 
+                    border: selectedCtoDetails.estadoAuditoria === 'PENDIENTE' ? '1px solid #64748b' : '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    padding: '10px 0',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    borderRadius: '10px'
+                  }}
                   onClick={() => handleUpdateStatus(selectedCtoDetails.id, 'PENDIENTE')}
                   disabled={loading}
                 >
                   Pendiente
                 </button>
                 <button 
-                  className={`btn ${selectedCtoDetails.estadoAuditoria === 'FALLO' ? 'btn-danger' : ''}`}
-                  style={{ background: selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: '#fff' }}
+                  className="btn"
+                  style={{ 
+                    background: selectedCtoDetails.estadoAuditoria === 'FALLO' ? '#ef4444' : 'rgba(255,255,255,0.04)', 
+                    border: selectedCtoDetails.estadoAuditoria === 'FALLO' ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    padding: '10px 0',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    borderRadius: '10px'
+                  }}
                   onClick={() => handleUpdateStatus(selectedCtoDetails.id, 'FALLO')}
                   disabled={loading}
                 >
                   Fallo
                 </button>
                 <button 
-                  className={`btn ${selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? 'btn-success' : ''}`}
-                  style={{ background: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : 'rgba(255,255,255,0.05)', color: '#fff' }}
+                  className="btn"
+                  style={{ 
+                    background: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '#10b981' : 'rgba(255,255,255,0.04)', 
+                    border: selectedCtoDetails.estadoAuditoria === 'CORRECTO' ? '1px solid #34d399' : '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    padding: '10px 0',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    borderRadius: '10px'
+                  }}
                   onClick={() => handleUpdateStatus(selectedCtoDetails.id, 'CORRECTO')}
                   disabled={loading}
                 >
@@ -1063,49 +1198,16 @@ function App() {
             
             <form onSubmit={handleCreateCTO} className="info-content" style={{ padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Código CTO *</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Número CTO *</label>
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ej: CTO-Z1-C1-05" 
+                  placeholder="Ej: CTO-12345" 
                   required 
                   value={newCtoData.codigo} 
                   onChange={e => setNewCtoData({...newCtoData, codigo: e.target.value})}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px' }}
                 />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Zona *</label>
-                  <select 
-                    className="form-input" 
-                    value={newCtoData.zonaId} 
-                    onChange={e => setNewCtoData({...newCtoData, zonaId: e.target.value, clusterId: ''})} 
-                    required
-                    style={{ width: '100%' }}
-                  >
-                    <option value="">Selecciona Zona</option>
-                    {zonas.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}
-                  </select>
-                </div>
-                
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Cluster *</label>
-                  <select 
-                    className="form-input" 
-                    value={newCtoData.clusterId} 
-                    onChange={e => setNewCtoData({...newCtoData, clusterId: e.target.value})} 
-                    required 
-                    disabled={!newCtoData.zonaId}
-                    style={{ width: '100%' }}
-                  >
-                    <option value="">Selecciona Cluster</option>
-                    {zonas.find(z => z.id === parseInt(newCtoData.zonaId))?.clusters.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -1119,7 +1221,7 @@ function App() {
                     required 
                     value={newCtoData.latitud} 
                     onChange={e => setNewCtoData({...newCtoData, latitud: e.target.value})}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', fontSize: '16px' }}
                   />
                 </div>
                 <div>
@@ -1132,7 +1234,7 @@ function App() {
                     required 
                     value={newCtoData.longitud} 
                     onChange={e => setNewCtoData({...newCtoData, longitud: e.target.value})}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', fontSize: '16px' }}
                   />
                 </div>
               </div>
@@ -1177,7 +1279,7 @@ function App() {
                   className="form-input" 
                   value={newCtoData.estado} 
                   onChange={e => setNewCtoData({...newCtoData, estado: e.target.value})}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: '16px' }}
                 >
                   <option value="">Seleccionar Estado</option>
                   {estados.map(est => (

@@ -22,7 +22,7 @@ public class CTO {
     private String codigo; // código
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cluster_id", nullable = false)
+    @JoinColumn(name = "cluster_id", nullable = true)
     private Cluster cluster;
 
     @Column(name = "usersinc")
