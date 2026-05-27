@@ -15,7 +15,8 @@ import {
   HardDrive,
   ExternalLink,
   Save,
-  Info
+  Info,
+  Plus
 } from 'lucide-react';
 import { api } from './api';
 import 'leaflet/dist/leaflet.css';
@@ -90,6 +91,21 @@ function ActiveLayerListener() {
   return null;
 }
 
+function MapClickHandler({ onMapClick, active }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!active) return;
+    const handleMapClick = (e) => {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    };
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [map, onMapClick, active]);
+  return null;
+}
+
 // Colores Dinámicos
 const getTechColor = (techName) => {
   if (!techName || techName === 'Sin Asignar') return '#64748b';
@@ -158,6 +174,19 @@ function App() {
   const [expandedClusters, setExpandedClusters] = useState([]);
   const [viewMode, setViewMode] = useState('mapa');
 
+  // Manual CTO creation states
+  const [estados, setEstados] = useState([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [isSelectingOnMap, setIsSelectingOnMap] = useState(false);
+  const [newCtoData, setNewCtoData] = useState({
+    codigo: '',
+    latitud: '',
+    longitud: '',
+    estado: '',
+    zonaId: '',
+    clusterId: ''
+  });
+
   // Data de referencia
   const [usuarios, setUsuarios] = useState([]);
   const [zonas, setZonas] = useState([]);
@@ -195,6 +224,13 @@ function App() {
       
       const zonasData = await api.getZonas();
       setZonas(zonasData);
+      
+      try {
+        const estadosData = await api.getEstados();
+        setEstados(estadosData);
+      } catch (err) {
+        console.warn('Error loading custom states:', err);
+      }
     } catch (error) {
       showNotification(error.message, 'error');
     }
@@ -325,6 +361,8 @@ function App() {
 
   const handleSelectCto = async (id) => {
     try {
+      setShowAddForm(false);
+      setIsSelectingOnMap(false);
       const details = await api.getCTODetail(id);
       setSelectedCtoDetails(details);
       setEditComentarios(details.comentarios || '');
@@ -395,6 +433,47 @@ function App() {
     }
   };
 
+  const handleCreateCTO = async (e) => {
+    e.preventDefault();
+    if (!newCtoData.codigo || !newCtoData.latitud || !newCtoData.longitud || !newCtoData.clusterId) {
+      showNotification('Por favor, rellena todos los campos obligatorios', 'error');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const payload = {
+        codigo: newCtoData.codigo,
+        latitud: parseFloat(newCtoData.latitud),
+        longitud: parseFloat(newCtoData.longitud),
+        estado: newCtoData.estado || 'PENDIENTE',
+        cluster: { id: parseInt(newCtoData.clusterId) }
+      };
+
+      await api.createCTO(payload);
+      showNotification('CTO Creada Manualmente');
+      
+      // Reset form
+      setNewCtoData({
+        codigo: '',
+        latitud: '',
+        longitud: '',
+        estado: '',
+        zonaId: '',
+        clusterId: ''
+      });
+      setShowAddForm(false);
+      setIsSelectingOnMap(false);
+      
+      // Reload CTO list
+      await loadInitialData();
+    } catch (error) {
+      showNotification(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app-container" style={{ paddingBottom: 0 }}>
       {notification && (
@@ -424,9 +503,18 @@ function App() {
             <button 
               className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'}`} 
               style={{ padding: '8px', borderRadius: '12px', minWidth: '42px', display: 'flex', justifyContent: 'center' }}
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => { setShowFilters(!showFilters); setShowAddForm(false); }}
             >
               <Filter size={18} />
+            </button>
+
+            <button 
+              className={`btn ${showAddForm ? 'btn-primary' : 'btn-secondary'}`} 
+              style={{ padding: '8px', borderRadius: '12px', minWidth: '42px', display: 'flex', justifyContent: 'center' }}
+              onClick={() => { setShowAddForm(!showAddForm); setShowFilters(false); setSelectedCtoDetails(null); }}
+              title="Añadir CTO Manual"
+            >
+              <Plus size={18} />
             </button>
           </div>
 
@@ -582,6 +670,17 @@ function App() {
                     eventHandlers={{ click: () => handleSelectCto(cto.id) }}
                   />
                 ))}
+
+                {isSelectingOnMap && (
+                  <MapClickHandler 
+                    active={isSelectingOnMap} 
+                    onMapClick={(lat, lng) => {
+                      setNewCtoData(prev => ({ ...prev, latitud: lat.toFixed(6), longitud: lng.toFixed(6) }));
+                      setIsSelectingOnMap(false);
+                      showNotification('Coordenadas fijadas desde el mapa');
+                    }} 
+                  />
+                )}
               </MapContainer>
 
               <button className="map-control-btn" onClick={centerOnUser} style={{ bottom: '24px', right: '12px', left: 'auto', padding: '8px', width: '38px', height: '38px', borderRadius: '50%' }}>
@@ -951,6 +1050,167 @@ function App() {
               </div>
 
             </div>
+          </div>
+        )}
+
+        {/* Drawer: Añadir CTO Manual */}
+        {showAddForm && (
+          <div className="info-sidebar" style={{ position: 'fixed', top: 'auto', bottom: 0, right: 0, left: 0, height: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', zIndex: 2000, border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="info-header" style={{ padding: '16px 20px' }}>
+              <div className="info-title">Añadir CTO Manual</div>
+              <X size={24} className="text-muted" onClick={() => { setShowAddForm(false); setIsSelectingOnMap(false); }} style={{ cursor: 'pointer' }} />
+            </div>
+            
+            <form onSubmit={handleCreateCTO} className="info-content" style={{ padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Código CTO *</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Ej: CTO-Z1-C1-05" 
+                  required 
+                  value={newCtoData.codigo} 
+                  onChange={e => setNewCtoData({...newCtoData, codigo: e.target.value})}
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Zona *</label>
+                  <select 
+                    className="form-input" 
+                    value={newCtoData.zonaId} 
+                    onChange={e => setNewCtoData({...newCtoData, zonaId: e.target.value, clusterId: ''})} 
+                    required
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Selecciona Zona</option>
+                    {zonas.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}
+                  </select>
+                </div>
+                
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Cluster *</label>
+                  <select 
+                    className="form-input" 
+                    value={newCtoData.clusterId} 
+                    onChange={e => setNewCtoData({...newCtoData, clusterId: e.target.value})} 
+                    required 
+                    disabled={!newCtoData.zonaId}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Selecciona Cluster</option>
+                    {zonas.find(z => z.id === parseInt(newCtoData.zonaId))?.clusters.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Latitud *</label>
+                  <input 
+                    type="number" 
+                    step="any" 
+                    className="form-input" 
+                    placeholder="Ej: 40.4167" 
+                    required 
+                    value={newCtoData.latitud} 
+                    onChange={e => setNewCtoData({...newCtoData, latitud: e.target.value})}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Longitud *</label>
+                  <input 
+                    type="number" 
+                    step="any" 
+                    className="form-input" 
+                    placeholder="Ej: -3.7037" 
+                    required 
+                    value={newCtoData.longitud} 
+                    onChange={e => setNewCtoData({...newCtoData, longitud: e.target.value})}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '4px' }}>
+                <button 
+                  type="button"
+                  className="btn btn-secondary" 
+                  style={{ padding: '8px', fontSize: '12px', width: '100%' }}
+                  onClick={() => {
+                    if (userLocation) {
+                      setNewCtoData({
+                        ...newCtoData,
+                        latitud: userLocation[0].toFixed(6),
+                        longitud: userLocation[1].toFixed(6)
+                      });
+                      showNotification('Coordenadas GPS fijadas');
+                    } else {
+                      showNotification('Ubicación GPS no disponible', 'error');
+                    }
+                  }}
+                >
+                  Usar mi ubicación
+                </button>
+                <button 
+                  type="button"
+                  className={`btn ${isSelectingOnMap ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '8px', fontSize: '12px', width: '100%' }}
+                  onClick={() => {
+                    setIsSelectingOnMap(true);
+                    setViewMode('mapa');
+                    showNotification('Toca cualquier parte del mapa para marcar las coordenadas');
+                  }}
+                >
+                  {isSelectingOnMap ? 'Toca el mapa...' : 'Marcar en mapa'}
+                </button>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Estado Inicial</label>
+                <select 
+                  className="form-input" 
+                  value={newCtoData.estado} 
+                  onChange={e => setNewCtoData({...newCtoData, estado: e.target.value})}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Seleccionar Estado</option>
+                  {estados.map(est => (
+                    <option key={est.id} value={est.nombre}>{est.nombre}</option>
+                  ))}
+                  {estados.length === 0 && (
+                    <>
+                      <option value="PENDIENTE">PENDIENTE</option>
+                      <option value="CORRECTO">CORRECTO</option>
+                      <option value="FALLO">FALLO</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => { setShowAddForm(false); setIsSelectingOnMap(false); }}
+                  disabled={loading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-success" 
+                  disabled={loading}
+                >
+                  {loading ? 'Guardando...' : 'Crear CTO'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>
